@@ -1,0 +1,51 @@
+{
+  "name": "@aqian0/dsh-unity",
+  "version": "0.1.0",
+  "description": "Unity's curated game-development, monetization, and performance skills for DeepSeek Harness: 34 skills that load on demand, maintained in this package.",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "unity",
+    "gamedev",
+    "game-development",
+    "skills",
+    "ui-toolkit",
+    "ugui",
+    "in-app-purchases",
+    "multiplayer",
+    "shader-graph"
+  ],
+  "license": "LicenseRef-Unity-Companion-License",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./lib/*.js": "./lib/*.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "lib/*.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "skills/**",
+    "icon.svg",
+    "LICENSE.md",
+    "README.md",
+    "docs/*.md",
+    "scripts/*.mjs",
+    "test/*.js"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "validate": "node scripts/validate-skills.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

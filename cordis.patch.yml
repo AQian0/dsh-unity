@@ -1,0 +1,22 @@
+# dsh-unity bundle patch.
+#
+# One row: the Host plugin that manages this package's 34 Unity skills. The
+# plugin registers a provider per agent through `agent.ctx`, so every session
+# gets the skills its own Unity project supports; `skills/` is this package's
+# content.
+#
+# The row needs no config. Defaults: providerName "unity"; rank 240, which only
+# orders this provider against runtime registrations in the same layer; project
+# gating on, leaving three workspace skills visible outside a Unity project;
+# requirement enforcement, runtime context, and skill watching on; project skill
+# roots taking precedence over this package. Override the row to change them:
+#
+#   - id: unity-skills
+#     name: '@aqian0/dsh-unity'
+#     config:
+#       workspaceSkills: [unity-cli]
+#       exclude: [unity-pipeline]
+- insert:
+    - id: unity-skills
+      name: '@aqian0/dsh-unity'
+      config: {}
