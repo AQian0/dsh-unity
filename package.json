@@ -1,7 +1,7 @@
 {
   "name": "@aqian0/dsh-unity",
   "version": "0.1.0",
-  "description": "Unity's curated game-development, monetization, and performance skills for DeepSeek Harness: 34 skills that load on demand, maintained in this package.",
+  "description": "Unity game-development, monetization, and performance skills for DeepSeek Harness: 34 skills that load on demand, packaged as a DSH bundle.",
   "keywords": [
     "deepseek-harness",
     "dsh-plugin",
@@ -15,7 +15,16 @@
     "multiplayer",
     "shader-graph"
   ],
-  "license": "LicenseRef-Unity-Companion-License",
+  "license": "(MIT AND LicenseRef-Unity-Companion-License)",
+  "author": "AQian",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AQian0/dsh-unity.git"
+  },
+  "homepage": "https://github.com/AQian0/dsh-unity#readme",
+  "bugs": {
+    "url": "https://github.com/AQian0/dsh-unity/issues"
+  },
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -36,12 +45,17 @@
     "skills/**",
     "icon.svg",
     "LICENSE.md",
+    "LICENSE-UNITY-COMPANION.md",
+    "NOTICE.md",
+    "CHANGELOG.md",
     "README.md",
-    "docs/*.md"
+    "docs/design.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "prepack": "npm run build",
+    "clean": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\"",
+    "prepack": "npm run clean && npm run build",
+    "prepublishOnly": "npm run typecheck && npm test && npm run validate",
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "node --test \"test/**/*.test.ts\"",
     "validate": "node scripts/validate-skills.ts"
@@ -57,6 +71,9 @@
   },
   "types": "lib/types/index.d.ts",
   "engines": {
-    "node": ">=22.6"
+    "node": ">=22.18"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
