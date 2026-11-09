@@ -81,13 +81,7 @@ interface Summary {
 }
 
 /** Frontmatter keys the DSH skill provider understands itself. */
-const STANDARD_KEYS = new Set([
-  'name',
-  'description',
-  'whenToUse',
-  'disable-model-invocation',
-  'user-invocable',
-]);
+const STANDARD_KEYS = new Set(['name', 'description', 'whenToUse', 'disable-model-invocation', 'user-invocable']);
 
 /** Warn when one SKILL.md exceeds this many bytes (the pruner trims above 8192 chars). */
 const BODY_SIZE_WARN_BYTES = 16384;
@@ -155,7 +149,9 @@ function collectReferences(lines: readonly string[], firstLineNumber: number): M
     }
     // Bare prose paths, with links and code spans removed to avoid double reads.
     const prose = line.replace(/\[[^\]]*\]\([^)]*\)/gu, '').replace(/`[^`\n]+`/gu, '');
-    for (const match of prose.matchAll(/(?<![\w/.:-])((?:references|scripts|assets|examples|resources)\/[A-Za-z0-9_./-]+)/gu)) {
+    for (const match of prose.matchAll(
+      /(?<![\w/.:-])((?:references|scripts|assets|examples|resources)\/[A-Za-z0-9_./-]+)/gu,
+    )) {
       const path = normalizeReference(match[1]);
       if (isSkillRelativePath(path) && !NEGATED_PREFIX.test(prose.slice(0, match.index))) {
         note(path, index);
@@ -166,7 +162,10 @@ function collectReferences(lines: readonly string[], firstLineNumber: number): M
 }
 
 /** Follow symlinks when deciding whether a directory entry is a skill folder. */
-async function isDirectoryEntry(parent: string, entry: { name: string; isDirectory(): boolean; isSymbolicLink(): boolean }): Promise<boolean> {
+async function isDirectoryEntry(
+  parent: string,
+  entry: { name: string; isDirectory(): boolean; isSymbolicLink(): boolean },
+): Promise<boolean> {
   if (entry.isDirectory()) return true;
   if (!entry.isSymbolicLink()) return false;
   try {
@@ -302,13 +301,19 @@ async function main(): Promise<number> {
       fail(file, 'body', 'skill body is empty');
     }
 
-    row.extras = Object.keys(data).filter((key) => !STANDARD_KEYS.has(key)).sort();
+    row.extras = Object.keys(data)
+      .filter((key) => !STANDARD_KEYS.has(key))
+      .sort();
 
     // Body size matters: a loaded skill body is a tool result, and an oversized one
     // gets trimmed head/tail once a compaction trigger qualifies.
     row.bodyBytes = Buffer.byteLength(raw, 'utf8');
     if (row.bodyBytes > BODY_SIZE_WARN_BYTES) {
-      warn(file, 'size', `SKILL.md is ${row.bodyBytes} bytes; bodies above ${BODY_SIZE_WARN_BYTES} get trimmed once compaction runs`);
+      warn(
+        file,
+        'size',
+        `SKILL.md is ${row.bodyBytes} bytes; bodies above ${BODY_SIZE_WARN_BYTES} get trimmed once compaction runs`,
+      );
     }
 
     // Requirement declarations drive project-aware gating, so they must be readable.
@@ -318,7 +323,11 @@ async function main(): Promise<number> {
     }
     for (const requirement of requirements.packages) {
       if (requirement.range !== '' && satisfiesRange(requirement.range, '1.0.0') === undefined) {
-        warn(file, 'requirements', `required_packages "${requirement.name}" range "${requirement.range}" cannot be parsed`);
+        warn(
+          file,
+          'requirements',
+          `required_packages "${requirement.name}" range "${requirement.range}" cannot be parsed`,
+        );
       }
     }
     if (requirements.editor !== undefined || requirements.packages.length > 0) {
@@ -395,7 +404,11 @@ async function main(): Promise<number> {
   for (const [name, group] of names) {
     if (group.length < 2) continue;
     for (const candidate of group) {
-      fail(candidate.locator?.file ?? skillsDir, 'unique names', `skill name "${name}" is advertised ${group.length} times`);
+      fail(
+        candidate.locator?.file ?? skillsDir,
+        'unique names',
+        `skill name "${name}" is advertised ${group.length} times`,
+      );
     }
   }
 
@@ -404,11 +417,19 @@ async function main(): Promise<number> {
     const row = skillRecords.get(folder);
     const candidate = candidateByDir.get(resolve(join(skillsDir, folder)));
     if (candidate === undefined) {
-      fail(join(skillsDir, folder, 'SKILL.md'), 'provider.list', 'folder is not advertised by createUnitySkillReader.list()');
+      fail(
+        join(skillsDir, folder, 'SKILL.md'),
+        'provider.list',
+        'folder is not advertised by createUnitySkillReader.list()',
+      );
       continue;
     }
     if (candidate.name !== folder) {
-      fail(candidate.locator.file, 'provider.list', `provider advertises name "${candidate.name}" for folder "${folder}"`);
+      fail(
+        candidate.locator.file,
+        'provider.list',
+        `provider advertises name "${candidate.name}" for folder "${folder}"`,
+      );
     }
     if (candidate.description.trim() === '') {
       fail(candidate.locator.file, 'provider.list', 'provider advertised an empty description');
@@ -435,7 +456,11 @@ async function main(): Promise<number> {
       fail(candidate.locator.file, 'provider.load', 'loaded name/description differ from the advertised candidate');
     }
     if (skill.invocation?.modelInvocable !== true || skill.invocation?.userInvocable !== true) {
-      warn(candidate.locator.file, 'provider.load', `invocation policy is not fully open (${JSON.stringify(skill.invocation)})`);
+      warn(
+        candidate.locator.file,
+        'provider.load',
+        `invocation policy is not fully open (${JSON.stringify(skill.invocation)})`,
+      );
     }
   }
 
@@ -443,7 +468,8 @@ async function main(): Promise<number> {
   // Summary and report.
   // ---------------------------------------------------------------------------
   const failedSkills = rows.filter((row) => failureUnder(failures, join(skillsDir, row.folder))).length;
-  const countFailures = (...checks: string[]): number => failures.filter((failure) => checks.includes(failure.check)).length;
+  const countFailures = (...checks: string[]): number =>
+    failures.filter((failure) => checks.includes(failure.check)).length;
   const referenceWarnings = warnings.filter((warning) => warning.check === 'reference').length;
   const extras = new Map();
   for (const row of rows) {
@@ -619,7 +645,7 @@ function renderMarkdown(summary: Summary): string {
   lines.push(`- Generated: ${new Date().toISOString()}`);
   lines.push(`- Node: ${process.version}`);
   lines.push(`- Skills directory: \`${summary.skillsDir}\``);
-  lines.push(`- Validator: \`scripts/validate-skills.ts\` (\`npm run validate\`)`);
+  lines.push(`- Validator: \`scripts/validate-skills.ts\` (\`pnpm run validate\`)`);
   lines.push('');
   lines.push('Discovery and loading are exercised through `createUnitySkillReader` from `src/skills.ts`');
   lines.push('and frontmatter parsing through `parseSkillMarkdown` from `src/frontmatter.ts`, so the audit');
@@ -633,9 +659,7 @@ function renderMarkdown(summary: Summary): string {
   lines.push(
     `- Provider path: **${summary.candidates}/${summary.skills}** candidates listed and **${summary.loaded}/${summary.skills}** skills loaded`,
   );
-  lines.push(
-    `- Skill-relative references: **${summary.referencesResolved}/${summary.references}** resolved on disk`,
-  );
+  lines.push(`- Skill-relative references: **${summary.referencesResolved}/${summary.references}** resolved on disk`);
   lines.push(
     `- Informational non-standard frontmatter keys: **${summary.extrasKeys.length}** keys across **${summary.extrasSkills}** skills`,
   );
@@ -644,17 +668,30 @@ function renderMarkdown(summary: Summary): string {
   lines.push('');
   lines.push('| Check | Result | Detail |');
   lines.push('| --- | --- | --- |');
-  const status = (count: number, word = 'failure'): string => (count === 0 ? 'pass' : `${count} ${word}${count === 1 ? '' : 's'}`);
+  const status = (count: number, word = 'failure'): string =>
+    count === 0 ? 'pass' : `${count} ${word}${count === 1 ? '' : 's'}`;
   const checks = summary.failureCounts;
   lines.push(`| SKILL.md in every skill folder | ${status(checks.layout)} | ${summary.skills} folders |`);
-  lines.push(`| Frontmatter parses (\`parseSkillMarkdown\`) | ${status(checks.frontmatter)} | ${summary.skills} skills |`);
+  lines.push(
+    `| Frontmatter parses (\`parseSkillMarkdown\`) | ${status(checks.frontmatter)} | ${summary.skills} skills |`,
+  );
   lines.push(`| Name is kebab-case and matches folder | ${status(checks.name)} | ${summary.skills} skills |`);
-  lines.push(`| Description non-empty and free of \`<\`/\`>\` | ${status(checks.description)} | ${summary.skills} skills |`);
-  lines.push(`| Skill names unique | ${status(checks.unique)} | ${new Set(summary.rows.map((row) => row.name)).size} distinct names |`);
+  lines.push(
+    `| Description non-empty and free of \`<\`/\`>\` | ${status(checks.description)} | ${summary.skills} skills |`,
+  );
+  lines.push(
+    `| Skill names unique | ${status(checks.unique)} | ${new Set(summary.rows.map((row) => row.name)).size} distinct names |`,
+  );
   lines.push(`| Body non-empty | ${status(checks.body)} | ${summary.skills} skills |`);
-  lines.push(`| Provider discovery (\`list\`) | ${status(checks.providerList)} | ${summary.candidates}/${summary.skills} candidates |`);
-  lines.push(`| Provider load (\`load\`) | ${status(checks.providerLoad)} | ${summary.loaded}/${summary.skills} loaded |`);
-  lines.push(`| Skill-relative references resolve | ${status(summary.referenceWarnings, 'warning')} | ${summary.referencesResolved}/${summary.references} resolved |`);
+  lines.push(
+    `| Provider discovery (\`list\`) | ${status(checks.providerList)} | ${summary.candidates}/${summary.skills} candidates |`,
+  );
+  lines.push(
+    `| Provider load (\`load\`) | ${status(checks.providerLoad)} | ${summary.loaded}/${summary.skills} loaded |`,
+  );
+  lines.push(
+    `| Skill-relative references resolve | ${status(summary.referenceWarnings, 'warning')} | ${summary.referencesResolved}/${summary.references} resolved |`,
+  );
   lines.push('');
   lines.push('## Skills');
   lines.push('');
@@ -714,6 +751,8 @@ try {
   const code = await main();
   process.exitCode = code;
 } catch (error) {
-  process.stderr.write(`validate-skills failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+  process.stderr.write(
+    `validate-skills failed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+  );
   process.exitCode = 1;
 }

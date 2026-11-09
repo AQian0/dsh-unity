@@ -153,7 +153,10 @@ export function createAgentRegistry(options: RegistryOptions): AgentRegistry {
   }
 
   /** Compute the gated catalog for one working directory. */
-  async function view(cwd: string | undefined, lookup: SkillLookupOptions): Promise<GatedCatalog & { facts: ProjectFacts | undefined; key: string }> {
+  async function view(
+    cwd: string | undefined,
+    lookup: SkillLookupOptions,
+  ): Promise<GatedCatalog & { facts: ProjectFacts | undefined; key: string }> {
     const facts = await factsFor(cwd);
     const projectSkills = await overridesFor(facts);
     const candidates = await skillReader.list(lookup);
@@ -164,7 +167,9 @@ export function createAgentRegistry(options: RegistryOptions): AgentRegistry {
   /** The provider one agent sees. */
   class UnitySkillProvider implements SkillProvider {
     readonly name: string;
-    private readonly resolveView: (options: SkillLookupOptions) => Promise<GatedCatalog & { facts: ProjectFacts | undefined; key: string }>;
+    private readonly resolveView: (
+      options: SkillLookupOptions,
+    ) => Promise<GatedCatalog & { facts: ProjectFacts | undefined; key: string }>;
 
     constructor(providerName: string, resolveView: UnitySkillProvider['resolveView']) {
       this.name = providerName;
@@ -248,7 +253,8 @@ export function createAgentRegistry(options: RegistryOptions): AgentRegistry {
   }
 
   function remove(agent: AgentLike | undefined): void {
-    const id = typeof agent?.session?.id === 'string' ? agent.session.id : typeof agent?.id === 'string' ? agent.id : undefined;
+    const id =
+      typeof agent?.session?.id === 'string' ? agent.session.id : typeof agent?.id === 'string' ? agent.id : undefined;
     if (id === undefined) return;
     const state = states.get(id);
     if (state === undefined) return;
@@ -273,7 +279,10 @@ export function createAgentRegistry(options: RegistryOptions): AgentRegistry {
       for (const state of states.values()) state.control?.invalidate();
     },
     disposeAll() {
-      for (const state of [...states.values()]) remove(state.agent);
+      // Snapshot: `remove()` disposes registrations that can re-enter this map,
+      // so the loop must not observe entries added while it runs.
+      const snapshot = [...states.values()];
+      for (const state of snapshot) remove(state.agent);
       states.clear();
       factsByCwd.clear();
       overridesByRoot.clear();
