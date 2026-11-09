@@ -32,7 +32,7 @@
 
 **构建形态**与官方插件包一致：仓库里是 `src/` 下的 TypeScript，`npm run build`（`tsc -p tsconfig.json`）产出 `lib/*.js` 与 `lib/types/*.d.ts`，`prepack` 会再跑一次构建，因此 `npm pack` 出来的 tarball 只有编译产物、`cordis.patch.yml`、`locale/`、`skills/`、图标，以及 `README.md`、`docs/`、`CHANGELOG.md` 与 `LICENSE.md`、`LICENSE-UNITY-COMPANION.md`、`NOTICE.md`。`lib/` 被 `.gitignore` 忽略，不随仓库提交；按目录安装前需要先构建。`tsconfig.test.json` 只做类型检查（`src/`、`test/`、`scripts/`），测试与脚本由 Node 内置的类型剥离直接运行 `.ts`（`engines` 要求 Node.js >=22.18）。
 
-此外，`locale/en.json` / `locale/zh.json` 与 `icon.svg` 提供插件页的标题、描述与图标。许可证按路径划分：整合代码（`src/`、`test/`、`scripts/`、配置与文档）是 MIT，全文见 `LICENSE.md`；`skills/` 下的技能内容版权属于 Unity Technologies，按 Unity Companion License 使用，全文见 `LICENSE-UNITY-COMPANION.md`；各覆盖哪些路径由 `NOTICE.md` 记录。这些文件与 `CHANGELOG.md` 一起随包发布。`scripts/validate-skills.ts` 与 `test/*.test.ts` 是开发期工具（见 7.3 与第 9 节）。
+此外，`locale/en.json` / `locale/zh.json` 与 `icon.svg` 提供插件页的标题、描述与图标（图标使用 Lucide 的 `gamepad-2` 图形，按 ISC 许可，见 `NOTICE.md`）。许可证按路径划分：整合代码（`src/`、`test/`、`scripts/`、配置与文档）是 MIT，全文见 `LICENSE.md`；`skills/` 下的技能内容版权属于 Unity Technologies，按 Unity Companion License 使用，全文见 `LICENSE-UNITY-COMPANION.md`；各覆盖哪些路径由 `NOTICE.md` 记录。这些文件与 `CHANGELOG.md` 一起随包发布。`scripts/validate-skills.ts` 与 `test/*.test.ts` 是开发期工具（见 7.3 与第 9 节）。
 
 ## 3. 为什么用 provider，为什么必须按 agent 注册
 

@@ -15,7 +15,7 @@
     "multiplayer",
     "shader-graph"
   ],
-  "license": "(MIT AND LicenseRef-Unity-Companion-License)",
+  "license": "(MIT AND ISC AND LicenseRef-Unity-Companion-License)",
   "author": "AQian",
   "repository": {
     "type": "git",

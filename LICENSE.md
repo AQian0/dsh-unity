@@ -25,6 +25,7 @@ SOFTWARE.
 Scope note. This MIT license covers the plugin code in this package: the
 build output under `lib/`, the sources under `src/`, the tests under `test/`,
 the validator under `scripts/`, and the bundle metadata (`cordis.patch.yml`,
-`locale/`, `icon.svg`, this package's documentation). The skill content under
-`skills/` is Unity Technologies' material and is licensed separately under the
-Unity Companion License; see LICENSE-UNITY-COMPANION.md and NOTICE.md.
+`locale/`, this package's documentation). The bundle icon (`icon.svg`) uses a
+glyph from Lucide under the ISC license, and the skill content under `skills/`
+is Unity Technologies' material under the Unity Companion License; both are
+licensed separately — see NOTICE.md.

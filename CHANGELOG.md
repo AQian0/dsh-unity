@@ -35,6 +35,11 @@
   支持 `--report <file>` 输出 Markdown 审计报告）。
 - 文档：`README.md`（安装、使用、配置、门控与已知限制）与 `docs/design.md`（设计说明）。
 
+### 变更
+
+- 插件图标改用 Lucide 的 `gamepad-2` 图形（ISC 许可），不再使用 Unity 徽标；
+  原因与版权声明见 `NOTICE.md`。
+
 ### 许可证
 
 - 插件代码（`lib/`、`src/`、`test/`、`scripts/` 与 bundle 元数据）采用 MIT 许可证，

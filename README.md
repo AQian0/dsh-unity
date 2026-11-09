@@ -257,8 +257,9 @@ node scripts/validate-skills.ts --report /tmp/skill-audit.md   # 另外写一份
 
 ## 许可证
 
-本包按路径分属两套许可证，逐路径的清单见 [NOTICE.md](./NOTICE.md)。
+本包按路径分属三套许可证，逐路径的清单见 [NOTICE.md](./NOTICE.md)。
 
-- **整合代码（MIT）**：插件源码、测试、脚本、配置与文档（`src/`、`test/`、`scripts/`、`cordis.patch.yml`、`locale/`、`icon.svg`、`README.md`、`docs/` 等）以 MIT 许可发布，全文见 [LICENSE.md](./LICENSE.md)。
+- **整合代码（MIT）**：插件源码、测试、脚本、配置与文档（`src/`、`test/`、`scripts/`、`cordis.patch.yml`、`locale/`、`README.md`、`docs/` 等）以 MIT 许可发布，全文见 [LICENSE.md](./LICENSE.md)。
+- **插件图标（ISC）**：`icon.svg` 使用 [Lucide](https://lucide.dev) 的 `gamepad-2` 图形（缩放、改色后置于圆角底板上），按其 ISC 许可证使用，版权声明与许可文本见 [NOTICE.md](./NOTICE.md)。
 - **技能内容（Unity Companion License）**：`skills/` 下的技能正文与随附资源版权属于 Unity Technologies，按 Unity Companion License 使用，全文见 [LICENSE-UNITY-COMPANION.md](./LICENSE-UNITY-COMPANION.md)。该许可证要求持有有效的 Unity Engine License，且不授予商标权利。
-- **标识**：Unity 的名称、图标等标识属于 Unity Technologies，使用请遵守 [Unity 品牌指南](https://unity.com/legal/branding-trademarks)。
+- **标识**：本包不使用 Unity 徽标或其他 Unity 品牌资产，只在描述兼容性与内容来源时以文字提及 Unity；Unity 的名称与徽标属于 Unity Technologies，相关使用遵循 [Unity 品牌指南](https://unity.com/legal/branding-trademarks)。本包非 Unity Technologies 或其关联公司赞助或认可，与 Unity 没有隶属关系。
