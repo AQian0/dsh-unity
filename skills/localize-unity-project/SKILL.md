@@ -45,37 +45,11 @@ will fail silently or throw confusing errors if the package isn't present.
 
 ### Full topic map
 
-Before you go forward with a workflow or diagnosis:
-
-1. Open and read the [documentation page(s)](#full-topic-map) that cover the specific subject related to what you intend to do or fix and check if you've missed anything.
-2. Name the file(s) you read in your response.
-
-This is because your training knowledge about Unity might be out of date, incorrect, or for the wrong Unity version.
-
-The docs pages are local markdown conversions of the Unity Manual, stored at `<project-folder>/Library/PackageCache/com.unity.localization@*/`. When reading docs, read only the .md files in that subfolder and don't browse other Library or PackageCache folders, because that takes too much time. This limit doesn't apply to package lookups that other steps run, such as the TMP import in [references/cjk-fonts.md](references/cjk-fonts.md). If that folder has no `.md` files, use the online pages at `https://docs.unity3d.com/Packages/com.unity.localization@<VERSION>/manual/` instead, because some package versions don't ship their docs.
-
-Prefer `WebFetch` over `WebSearch` — faster and lands on the exact reference. Only fetch what you need. Replace `<VERSION>` with the following before fetching:
-
-- **Package on docs.unity3d.com**: The package version, eg `@6.6` or `@2.0`. Check the package version if unsure.
-- **docs.unity.com**: The product version, eg `7000.0`
-
-Read the Unity version from `ProjectSettings/ProjectVersion.txt`, and each package's major.minor from `Packages/packages-lock.json` (for example `1.5` for `com.unity.localization`). TextMesh Pro (TMP) API pages are in the `com.unity.ugui` docs. If `packages-lock.json` lists `com.unity.textmeshpro` instead, use `https://docs.unity3d.com/Packages/com.unity.textmeshpro@<VERSION>/api/` with that package's version.
-
-Read [references/docs-map.md](references/docs-map.md) for the manual, API and Script Reference pages to read.
+Read [documentation-lookup.md](references/documentation-lookup.md) before any workflow or diagnosis. It covers where the package's local docs live, how to version the doc URLs, and which manual page to open first.
 
 ### API reference
 
-The API is `UnityEngine.Localization` and `UnityEditor.Localization`, part of the `com.unity.localization` package. It is versioned by package version, not Unity version (e.g. `@1.4`, `@1.5`), so check the project's installed package version before relying on a specific class or method.
-
-1. Read the installed package version from `Packages/packages-lock.json`, as in [Step 1](#1-check-the-localization-package-is-installed).
-2. Fetch and cache `https://docs.unity3d.com/Packages/com.unity.localization@<version>/xrefmap.yml` (replace `<version>` with the installed package version, e.g. `1.5`). This file maps every public API member's fully qualified name to its docs page `href` (e.g. `href: api/UnityEngine.Localization.LocalizedTmpFont.html` => `https://docs.unity3d.com/Packages/com.unity.localization@1.5/api/UnityEngine.Localization.LocalizedTmpFont.html`).
-3. Grep the yml file locally for a class or method instead of refetching per lookup. Don't read the whole file.
-
-Always fetch the version matching the installed package rather than relying on training knowledge, since APIs are frequently marked obsolete between major versions. The same steps work for the TMP (`com.unity.ugui` or `com.unity.textmeshpro`) and `com.unity.addressables` APIs.
-
-For Engine APIs (`UnityEditor.AssetDatabase`, `UnityEditor.PackageManager`, `UnityEngine.Events`), follow the Engine API lookup steps in [references/docs-map.md](references/docs-map.md).
-
-For Asset Table entry, `Resources/` folder and font repair pitfalls, see [references/api-notes.md](references/api-notes.md).
+Read [documentation-lookup.md](references/documentation-lookup.md#api-reference) before guessing a package or Engine API signature. It covers the installed package version, `xrefmap.yml` caching, and grepping it for a class or method.
 
 ## 3. Localization Settings & Locales
 If `LocalizationEditorSettings.ActiveLocalizationSettings` is null, you must find or create it:
@@ -103,21 +77,8 @@ After any modification (adding keys, updating values), notify the Editor so it c
 
 ## 5. UI Localization and Layout
 ### **Namespacing & Conflicts**
-- **Single Instance:** Always check `GameObject.Find("YourCanvasName")` and destroy the old one before creating a new one.
-- **Locale switching: use the package, and keep preview and runtime separate.** These are two
-  different mechanisms, and conflating them is why locale switching often ends up hand-rolled.
-  - **To preview a locale while authoring**, use the **Localization Scene Controls** window
-    (`Window > Asset Management > Localization Scene Controls`). This is Editor-only. It is not a
-    runtime feature, so it is not the answer when the game itself needs a language setting.
-  - **To switch locale at runtime**, assign `LocalizationSettings.SelectedLocale`. That is the
-    supported entry point, and everything bound through `LocalizeStringEvent` updates from it.
-  - **To pin which locale the game starts in**, configure a startup locale selector on the
-    Localization Settings asset. `SpecificLocaleSelector` is the one that forces a chosen locale;
-    the default chain otherwise picks up the system language.
-  - **NEVER hand-roll locale state.** A real in-game language menu is fine and expected, as long as
-    it sets `SelectedLocale` and lets the package propagate the change. What is forbidden is a debug
-    dropdown or menu that tracks its own "current language" variable, swaps strings itself, or
-    reaches around the package, because nothing else in the project will follow it.
+
+Read [locale-switching.md](references/locale-switching.md) before adding a language menu or any locale-switching code, so the change goes through the package rather than a hand-rolled current-language variable.
 
 ### **Localized String Events (Robust Binding)**
 1. **Check Component Type:** Identify if the target is `TextMeshPro` or legacy `UnityEngine.UI.Text`.
@@ -141,52 +102,8 @@ Translated strings are often much longer than the source text, so a label sized 
 3. Verify by switching to each locale and checking `TMP_Text.isTextOverflowing` on the affected labels.
 
 ### Notes when translating an existing project
-- **Minimal Code Changes**: Never modify code unrelated to localization. Use a static helper class (e.g., `L10n`) to wrap `LocalizationSettings.StringDatabase.GetLocalizedString` for easy injection into existing scripts.
-- **Robust Mapping Strategy**: When mapping existing UI text to keys, sort keys by string length (descending) and match longest strings first. This prevents short strings (like "NO") from matching parts of longer sentences. Use case-insensitive matching where appropriate.
-- **Component Event Listeners**: wire `LocalizeStringEvent.OnUpdateString` with
-`UnityEventTools.AddPersistentListener`, passing a delegate built over the text component's public
-`text` setter. The setter has no C# method-group name, so build the delegate by name:
-`(UnityAction<string>)Delegate.CreateDelegate(typeof(UnityAction<string>), text, "set_text")`.
-That is reflection over a **public** member, which is fine. See
-[scripts/L10nBatchProcessor.cs](scripts/L10nBatchProcessor.cs) for the working version, including
-clearing any existing persistent listeners first so repeated runs don't stack duplicates.
-  - Do **not** write the persistent-call fields directly through `SerializedObject` (`m_MethodName`,
-    `m_Mode`, `m_PersistentCalls`). Those are private serialized names with no compatibility
-    guarantee, and it isn't necessary: `AddPersistentListener` with the delegate above produces the
-    same serialized call (target = the text component, method = `set_text`, mode = `EventDefined`).
-  - **You must then set the call state, or the label will not update in the Editor.**
-    `AddPersistentListener` leaves the call at `UnityEventCallState.RuntimeOnly`, so the binding is
-    correct but dormant outside Play mode: switching locale in the Editor changes nothing, and it
-    stays that way through a save and reload. Fix it with the public
-    `UnityEventBase.SetPersistentListenerState`:
-    ```csharp
-    UnityEventTools.AddPersistentListener(lse.OnUpdateString, setText);
-    var index = lse.OnUpdateString.GetPersistentEventCount() - 1;
-    lse.OnUpdateString.SetPersistentListenerState(
-        index, UnityEngine.Events.UnityEventCallState.EditorAndRuntime);
-    ```
-  - Persistent listeners **MUST** point to a method on a `UnityEngine.Object`; lambdas will fail.
-  - **Then confirm the binding is live, don't assume it.** Wiring that looks right in the Inspector
-    but does nothing is the characteristic failure of this step. All of the read-back you need is
-    public API on the event, so none of this requires touching serialized fields:
 
-    | Check | Call | Expect |
-    |---|---|---|
-    | Something was wired | `GetPersistentEventCount()` | `> 0` |
-    | It points at the text component | `GetPersistentTarget(i)`, `GetPersistentMethodName(i)` | the component, `set_text` |
-    | It will fire while authoring | `GetPersistentListenerState(i)` | `EditorAndRuntime` |
-    | It actually updates the label | `lEvent.RefreshString()` | the text value changes |
-
-    Do all four, because a binding that is wired but never fires reads as done while leaving the
-    label unlocalized.
-- **Initialization & Refresh**: 
-    - `LocalizationEditorSettings.CreateStringTableCollection` expects a **directory path** (e.g., `Assets/Localization`), not a full asset path.
-    - Always call `lEvent.RefreshString()` after assigning a `LocalizedString` reference programmatically to update the UI immediately.
-    - Keys must exist with a **non-empty value in every table** of a collection (en, de, ja, …). A key
-      that exists with an empty value is the common gap, and it is not silent: the package prints its
-      own "No translation found for …" text **into the game UI**, so the shipped screen shows a
-      developer message. Do not eyeball this. Run the completeness check below.
-- **Verification**: After modifying tables or addressables, run `AddressableAssetSettings.BuildPlayerContent()` and switch the Editor locale to verify changes. Check `LocalizationSettings.Instance` status after activation.
+Read [translating-existing-project.md](references/translating-existing-project.md) when localizing UI that already exists. It covers minimal-code-change mapping, listener wiring with its read-back checks, and the refresh rules.
 
 ### Table completeness check (run this before declaring the work done)
 

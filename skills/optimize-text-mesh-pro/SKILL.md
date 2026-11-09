@@ -30,14 +30,13 @@ Prefer `WebFetch` over `WebSearch` — faster and lands on the exact reference. 
 
 For TextMeshPro, if `com.unity.ugui` is 2.0 or later, TMP is part of uGUI and its docs are in the `com.unity.ugui` package; otherwise they are in the `com.unity.textmeshpro` package. Use the one listed in `Packages/packages-lock.json`.
 
-## Glossary
+## Full topic map
 
-Some names mean different things in the product, the UI and the API, so use these meanings:
+Docs pages, API entry points, and glossary: [references/topic-map.md](references/topic-map.md).
 
-- **TextMeshPro (TMP)**: the text system as a whole.
-- **`TextMeshPro` component**: the 3D text component for text in the scene, without a Canvas.
-- **`TextMeshProUGUI` component**: the UI text component that renders through a Canvas.
-- **Dynamic** and **Dynamic OS**: two different Atlas Population Mode values. Dynamic uses the project's font file, and Dynamic OS uses a font on the device. Don't treat one as the other.
+## API reference
+
+Read [API reference](references/topic-map.md#api-reference) before relying on a class or method name.
 
 ## Workflow
 
@@ -147,62 +146,15 @@ If the user needs multiple styles (italic, bold, outline, glow) of the same font
 
 ---
 
-## Dynamic OS Atlas Population
+## Dynamic atlases, profiling, worldspace text
 
-If the user is shipping multilingual builds and concerned about build size, advise evaluating **`Atlas Population Mode = Dynamic OS`**. Read the Dynamic OS font asset section of [Font assets](https://docs.unity.com/en-us/engine/<VERSION>/manual/uitoolkits/uielements/uie-work-with-text/uie-font-asset/uie-font-asset.md) for what it changes in the build. The TMP package manual doesn't cover Dynamic OS, but this page covers the font assets that TMP and UI Toolkit share.
+### Dynamic OS Atlas Population
 
-At runtime, Dynamic OS looks for a device font with the same Family and Style name as the source font, so choose a source font whose name exists on each target platform. Recommended system fonts for CJK:
+### Memory Profiler: Include Font Data
 
-| Platform | Recommended system font |
-|---|---|
-| **Android** | NotoSans (covers Chinese, Japanese, Korean glyphs broadly). |
-| **iOS** | PingFang for Simplified/Traditional Chinese. iOS uses **unique fonts per language** for CJK (different families for Chinese, Japanese, Korean) - check the fallback chain when shipping a single TMP setup across all three. |
+### Worldspace vs Canvas Text
 
----
-
-## Memory Profiler: Include Font Data
-
-If Memory Profiler shows unexpectedly large font asset sizes, check **Include Font Data** on the `.ttf` / `.otf` import settings. Read [TrueTypeFontImporter.includeFontData](https://docs.unity.com/en-us/engine/<VERSION>/script-reference/unityeditor/truetypefontimporter/includefontdata.md) for what it controls.
-
-Keep it on for fonts that dynamic font assets use, because they generate glyphs from the font data at runtime. Don't turn it off just to make an Editor capture look like a device, because it changes what ships in the build. For build size, use static font assets or [Dynamic OS](#dynamic-os-atlas-population) instead.
-
----
-
-## Worldspace vs Canvas Text
-
-If the user has worldspace text (damage numbers, signs, holograms) using `TextMeshProUGUI`, advise switching to **`TextMeshPro`**. Worldspace Canvas is a known inefficiency.
-
-If a `TextMeshProUGUI` element's `text` changes often (timers, counters, chat), advise **parenting it under a child GameObject with its own Canvas component**. Canvas rebuilds are scoped per-Canvas, so isolating the volatile field cuts rebuild cost on the rest of the UI.
-
----
-
-## Full topic map
-
-The docs pages are local markdown conversions of the Unity Manual, stored at `<project-folder>/Library/PackageCache/com.unity.ugui@*/` (TMP pages in `Documentation~/TextMeshPro/`) or, for the older package, `<project-folder>/Library/PackageCache/com.unity.textmeshpro@*/` (TMP pages in `Documentation~/`). Read only the .md files in that specific `PackageCache` subfolder. You must not look at non-.md files, or look outside at other Library or PackageCache folders, otherwise it takes too much time.
-
-If that folder has no .md files, because some packages don't ship their docs, use the online pages at `https://docs.unity3d.com/Packages/com.unity.ugui@<VERSION>/manual/TextMeshPro/<page>.html` or `https://docs.unity3d.com/Packages/com.unity.textmeshpro@<VERSION>/manual/<page>.html`, where `<page>` is the file name from the list below without `.md`. Use `.html`, because package docs on docs.unity3d.com don't publish a `.md` version of each page. Some older `com.unity.textmeshpro` versions publish only an index page; if a page is missing, use the `com.unity.ugui@2.0` page instead.
-
-- **Text objects** — `TMPObjectUIText.md`: `TextMeshProUGUI` properties, including Auto Size and Material Preset
-- **Font Assets** — `FontAssets.md`: overview of font assets, including Clear Dynamic Data on Build
-  - Font Asset Properties — `FontAssetsProperties.md`: Scale, Atlas Population Mode, atlas size, font weights
-  - Font Asset Creator — `FontAssetsCreator.md`: sampling point size, padding, render mode
-  - Dynamic Fonts — `FontAssetsDynamicFonts.md`: how dynamic font assets add glyphs, and what they cost
-  - Fallback Fonts — `FontAssetsFallback.md`: per-asset and global fallback chains
-  - Line Metrics — `FontAssetsLineMetrics.md`: ascender, descender, baseline, for aligning mixed scripts
-  - Signed Distance Fields — `FontAssetsSDF.md`: how SDF atlases render text
-- **Sprites** — `Sprites.md`: creating Sprite Assets and the source texture settings
-- **Shaders** — `Shaders.md`: TMP shaders and the material properties a preset overrides
-- **Settings** — `Settings.md`: TMP Settings, default and global fallback fonts
-
-### API reference
-
-The API is the `TMPro` namespace (for example `TMP_FontAsset`, `TextMeshPro`, `TextMeshProUGUI`), part of the `com.unity.ugui` package (2.0 or later) or the older `com.unity.textmeshpro` package. It is versioned by package version, not Unity version (e.g. `@2.0`, `@3.0`), so check the project's installed package version before relying on a specific class or method.
-
-1. Use the `unity-cli` skill to check the installed package version, or read it from `Packages/packages-lock.json`.
-2. Fetch and cache `https://docs.unity3d.com/Packages/<package-name>@<version>/xrefmap.yml` (replace `<package-name>` with `com.unity.ugui` or `com.unity.textmeshpro`, and `<version>` with the installed package version, e.g. `2.0`). This file maps every public API member's fully qualified name to its docs page `href` (e.g. `href: api/TMPro.TMP_FontAsset.html` => `https://docs.unity3d.com/Packages/com.unity.ugui@2.0/api/TMPro.TMP_FontAsset.html`).
-3. Grep the yml file locally for a class or method instead of refetching per lookup. Don't read the whole file.
-
-Always fetch the version matching the installed package rather than relying on training knowledge, since APIs are frequently marked obsolete between major versions.
+Read [dynamic atlases, profiling, and worldspace text](references/dynamic-atlas-and-profiling.md) when build size, font-data memory, or worldspace Canvas text is in play.
 
 ## Final step
 

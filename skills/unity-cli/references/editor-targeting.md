@@ -1,0 +1,29 @@
+# More than one Editor open? Pass `--project-path`
+
+Every Editor-driving command takes `--project-path <path>`. **Pass it whenever more than one Editor may be running** — without it the CLI targets the Editor whose project contains the current directory, so the target follows the shell's cwd:
+
+```bash
+unity command editor.playmode start --project-path /path/to/MyProject
+```
+
+To pin one Editor when several share a project (worktrees, duplicate projects, Multiplayer Play Mode players), `unity command`, `list`, `job` and `mcp` also take `--port <number>`, `--pid <number>` or `--instance <name>` (the MPPM instance name or `vpId`); a pin that matches no running Editor exits 12 with `EDITOR_NOT_RUNNING`. A `unity status` instance's `project` field is what `--project-path` takes. For `unity command`/`list`/`job`/`mcp`, matching no running project fails with `AMBIGUOUS_EDITOR` and lists the candidates. [Details](integration-advanced.md#targeting-one-of-several-running-editors).
+
+**Working in several worktrees or agent sessions? One Editor per worktree.** Make each worktree with `unity vcs git worktree add <branch> --into <path>`, so you choose where it lands. `--into` is optional: `--format json` reports the real worktree and project paths, and only the human output masks the account name in a home-directory path. The Unity project is `<path>` when it sits at the repository root, and `<path>/<its folder>` when it doesn't. Open that project's own Editor with `unity open <project>`. Then pin every call that reaches the Editor to that project: pass `--project-path <full project path>`, or prefix the call with the variable, as in `UNITY_PROJECT_PATH=<full project path> unity command editor status`. Most agent tools run each command in a fresh shell, so an `export` or a bare assignment in one call never reaches the next one. Every command that takes `--project-path` reads the variable when you pass no path, and so does `unity open`. Only `close`, `projects unlink cloud`, `mcp configure` and `ci init` don't read it: pass the path to those. Without the variable, a bare `unity open` opens the project of the current directory, which is still your source checkout. Target that Editor by the same full path every time, including `unity status --until-ready --project-path <project>`. A path that exists matches only that project, while a bare name also matches a sibling whose path contains it. Never drive an Editor whose project is not your own checkout (or one of its Multiplayer Play Mode clones). An Editor open on a sibling worktree answers every command just like yours. A command sent there edits that checkout's scenes, and its Play mode, recompiles and imports run against that checkout's code. If your own Editor isn't open, open it. If it has gone away, tell the user rather than borrowing the one that is running.
+
+Requires the project's `com.unity.pipeline` package (Unity 6.0+) — add it once with `unity pipeline install`. Full details — launching a headless Editor to drive, `unity command` tool discovery, and authoring custom `[CliCommand]` tools — are in [integration-advanced.md](integration-advanced.md).
+
+The package also ships a deeper `unity-pipeline` agent skill, invisible to clients inside `Library/PackageCache` — in a project with the package, run `unity skill install <client> --local` once to mirror it beside this skill.
+
+> **Can't connect / commands time out? Check for Safe Mode first.** When a project has C# compile errors, the Editor boots into **Safe Mode**, where the Pipeline package doesn't load, so `unity command` and `unity recompile` can't connect at all (`unity status` doesn't connect for this: it reads the Editor's log and reports Safe Mode). Note what that means for `unity recompile` specifically: it reports errors you introduce into an Editor that is **already running**, but an Editor that *started* with broken code never loads the package, so there is nothing to ask and it exits `7` rather than reporting the errors. Don't fall back to blind file-editing: run `unity status` (it reports Safe Mode and lists the compile errors, `safeMode.compileErrors` under `--format json`), then fix the errors: the Editor leaves Safe Mode once they compile. Full recovery loop in [integration-advanced.md → Recovering from Safe Mode](integration-advanced.md#recovering-from-safe-mode-connection-fails-because-of-compile-errors).
+
+> **Running as a sandboxed coding agent and `unity status` reports no instances?** A restrictive sandbox can hide an Editor that is genuinely running from this CLI's view of it — don't treat that alone as proof the Editor is down. Full detail in [integration-advanced.md → Sandboxed agent tooling can hide a running Editor](integration-advanced.md#sandboxed-agent-tooling-can-hide-a-running-editor).
+
+> **A call timed out, or the Editor's lifecycle failed? Tell the user, don't silently work around it.** First rule out [Safe Mode](integration-advanced.md#recovering-from-safe-mode-connection-fails-because-of-compile-errors), a sandbox, and an Editor that is still importing or loading. Read `errors[0].code` under `--format json`, and give a slow import a longer `--timeout`. If it is still one of these, report it:
+>
+> - a command that times out
+> - an Editor that never reaches `ready` under `unity status --until-ready` (exit 6)
+> - a connection that drops mid-command
+> - an Editor that quits or restarts under you
+> - a `unity open` that never produces an Editor
+>
+> Don't quietly retry in a loop, switch to another Editor, or fall back to hand-editing scene and asset files. Say what you ran, what failed and what you already tried. Then offer to file it with `unity bug --area pipeline-package` (`--area editor` when the Editor itself quit or never started), and ask first: `unity bug` sends logs to Unity, so never run it on your own initiative.

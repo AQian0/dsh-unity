@@ -32,44 +32,11 @@ This is because your training knowledge about Unity might be out of date, incorr
 
 ## Full topic map
 
-The Vivox docs pages are online `.md` pages on docs.unity.com. Use the [Unity Vivox curated documentation map](https://docs.unity.com/en-us/vivox-unity/llms.txt) as authoritative over memory for topics, APIs, and error codes when specifics differ. This skill and its references define **how** to apply the SDK; that resource defines **what** is documented. **Never** mention the `llms.txt` filename to the user. If it's unreachable, treat this skill's references plus the installed package at `<project-folder>/Library/PackageCache/com.unity.services.vivox@*/` as the source of truth. Read only the `.md` and `.cs` files in that specific `PackageCache` subfolder, because the package doesn't ship the full Vivox docs. You must not look outside at other Library or PackageCache folders, otherwise it takes too much time.
-
-Prefer fetching the page directly (for example `WebFetch`) over searching (for example `WebSearch`) — faster and lands on the exact reference. Only fetch what you need, and only search if you don't have the exact URL. The following Vivox pages have no version in the URL, so fetch them as listed.
-
-- [Vivox Unity SDK quickstart guide](https://docs.unity.com/en-us/vivox-unity/vivox-unity-first-steps.md): Enable Vivox, initialize, sign in, join channels, send messages.
-- [Initiate a channel join](https://docs.unity.com/en-us/vivox-unity/developer-guide/channels/initiate-channel-join.md): Join request code with `ChannelJoined` and `ChannelLeft` handlers.
-- [Positional channel properties](https://docs.unity.com/en-us/vivox-unity/developer-guide/channels/positional-channel-properties.md): `Channel3DProperties` distances, fade intensity and fade model defaults.
-- [Participant management](https://docs.unity.com/en-us/vivox-unity/developer-guide/channels/participant-events.md): Participant added, removed and state-change events in channels.
-- [Directed messages](https://docs.unity.com/en-us/vivox-unity/developer-guide/messaging/directed-messages.md): Send and receive private messages between signed-in players.
-- [Error Codes](https://docs.unity.com/en-us/vivox-unity/developer-guide/troubleshooting/error-codes.md): Vivox SDK error codes with a handling recommendation for each.
+Read [the docs topic map](references/docs-topic-map.md) before answering any Vivox question — it lists the authoritative page per topic, matched to the installed package version, and what to use when those docs are unreachable.
 
 ### API reference
 
-The API reference URLs contain `<VERSION>`. Replace it with the major.minor version only, for example `6000.0` from `6000.0.58f1` in `ProjectSettings/ProjectVersion.txt`, or `16.9` for the package in `Packages/packages-lock.json`, because the full build number gives a 404.
-
-The API is `Unity.Services.Vivox`, part of the `com.unity.services.vivox` package. It is versioned by package version, not Unity version (e.g. `@16.4`, `@16.9`), so check the project's installed package version before relying on a specific class or method.
-
-1. Read the installed package version from `Packages/packages-lock.json`.
-2. Fetch and cache `https://docs.unity3d.com/Packages/com.unity.services.vivox@<VERSION>/xrefmap.yml` (replace `<VERSION>` with the installed package version, e.g. `16.9`). This file maps every public API member's fully qualified name to its docs page `href` (e.g. `href: api/Unity.Services.Vivox.IVivoxService.html` => `https://docs.unity3d.com/Packages/com.unity.services.vivox@<VERSION>/api/Unity.Services.Vivox.IVivoxService.html`).
-3. Grep the yml file locally for a class or method instead of refetching per lookup. Don't read the whole file.
-
-Always fetch the version matching the installed package rather than relying on training knowledge, since APIs are frequently marked obsolete between major versions (e.g. the v4 `Client` and `ILoginSession` model is gone in v16).
-
-The microphone permission API is `UnityEngine.Android.Permission`, part of the Unity Engine. It is versioned by Unity version, so check the project's Unity version before relying on a specific class or method.
-
-1. Use the `unity-cli` skill to check the project's Unity version.
-2. If the Editor install folder has a `Data/Documentation` folder (e.g. `.../Unity/Hub/Editor/6000.6.0b2/Editor/Data/Documentation`), grep the html files in the `en/ScriptReference` folder inside, and skip the remaining steps.
-3. Otherwise, fetch and cache `https://docs.unity3d.com/<VERSION>/Documentation/ScriptReference/xrefmap.yml` (replace `<VERSION>` with the Unity version, e.g. `6000.3`). This file lists every public API member's fully qualified name as a `uid` (e.g. `uid: 'UnityEngine.Rigidbody.AddForce(UnityEngine.Vector3)'`).
-4. Grep the yml file locally for a class or method instead of refetching per lookup. The file is large (about 6 MB), so don't read the whole file.
-5. Convert the `uid` to a markdown page: remove the parameters in brackets, lowercase it, replace `.` with `/`, and add `.md`. Then fetch `https://docs.unity.com/en-us/engine/<VERSION>/script-reference/<converted uid>`. For example, `UnityEngine.Rigidbody.AddForce(UnityEngine.Vector3)` => `https://docs.unity.com/en-us/engine/<VERSION>/script-reference/unityengine/rigidbody/addforce.md`. All overloads are on the same page.
-   - Constructors use `ctor` (e.g. `unityengine/vector3/ctor.md`), and indexers use `item` (e.g. `unityengine/vector3/item.md`).
-   - For operators, fetch the class page (e.g. `unityengine/vector3.md`) and follow its link.
-   - Links inside the pages start with `/engine/`. Add `https://docs.unity.com/en-us` before them.
-   - If the page doesn't exist for that Unity version, use the `href` in the `xrefmap.yml` entry instead (e.g. `href: 'Rigidbody.AddForce.html'` => `https://docs.unity3d.com/<VERSION>/Documentation/ScriptReference/Rigidbody.AddForce.html`).
-
-If the Unity version is earlier than 6000.0, the Engine `xrefmap.yml` and `.md` pages don't exist, so fetch `https://docs.unity3d.com/<VERSION>/Documentation/ScriptReference/Android.Permission.RequestUserPermission.html` directly.
-
-Always use the docs for the project's Unity version rather than relying on training knowledge, since APIs are frequently marked obsolete between versions.
+Read [the API reference lookup](references/api-reference-lookup.md) when you need a signature, member, or overload for a specific version: it carries the fetch-and-grep procedure for the Vivox package API and for the engine API, with the URL construction rules.
 
 ## Detailed References
 

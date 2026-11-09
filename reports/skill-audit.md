@@ -2,7 +2,7 @@
 
 Audit of the packaged Unity skills against DeepSeek Harness skill rules.
 
-- Generated: 2026-11-09T05:16:19.265Z
+- Generated: 2026-11-09T05:30:59.660Z
 - Node: v26.13.0
 - Skills directory: `/Users/aqian/dsh-unity/skills`
 - Validator: `scripts/validate-skills.mjs` (`npm run validate`)
@@ -15,9 +15,9 @@ measures what the harness itself would see.
 
 - Skills audited: **34**
 - Passed: **34**; failed: **0**
-- Failures: **0**; warnings: **13**
+- Failures: **0**; warnings: **0**
 - Provider path: **34/34** candidates listed and **34/34** skills loaded
-- Skill-relative references: **155/155** resolved on disk
+- Skill-relative references: **228/228** resolved on disk
 - Informational non-standard frontmatter keys: **6** keys across **14** skills
 
 ## Checks
@@ -32,7 +32,7 @@ measures what the harness itself would see.
 | Body non-empty | pass | 34 skills |
 | Provider discovery (`list`) | pass | 34/34 candidates |
 | Provider load (`load`) | pass | 34/34 loaded |
-| Skill-relative references resolve | pass | 155/155 resolved |
+| Skill-relative references resolve | pass | 228/228 resolved |
 
 ## Skills
 
@@ -91,19 +91,7 @@ for information and are **not** failures.
 
 ## Warnings
 
-- `/Users/aqian/dsh-unity/skills/build-gtk/SKILL.md` [size]: SKILL.md is 16582 bytes; bodies above 16384 get trimmed once compaction runs
-- `/Users/aqian/dsh-unity/skills/build-live-game/SKILL.md` [size]: SKILL.md is 18752 bytes; bodies above 16384 get trimmed once compaction runs
-- `/Users/aqian/dsh-unity/skills/fix-3d-physics-collisions/SKILL.md` [size]: SKILL.md is 19901 bytes; bodies above 16384 get trimmed once compaction runs
-- `/Users/aqian/dsh-unity/skills/levelplay-unity-integration/SKILL.md` [size]: SKILL.md is 38227 bytes; bodies above 16384 get trimmed once compaction runs
-- `/Users/aqian/dsh-unity/skills/localize-unity-project/SKILL.md` [size]: SKILL.md is 19908 bytes; bodies above 16384 get trimmed once compaction runs
-- `/Users/aqian/dsh-unity/skills/manage-sprite-atlas/SKILL.md` [size]: SKILL.md is 18459 bytes; bodies above 16384 get trimmed once compaction runs
-- `/Users/aqian/dsh-unity/skills/migrate-birp-to-urp/SKILL.md` [size]: SKILL.md is 52420 bytes; bodies above 16384 get trimmed once compaction runs
-- `/Users/aqian/dsh-unity/skills/new-unity-project/SKILL.md` [size]: SKILL.md is 24648 bytes; bodies above 16384 get trimmed once compaction runs
-- `/Users/aqian/dsh-unity/skills/optimize-text-mesh-pro/SKILL.md` [size]: SKILL.md is 17557 bytes; bodies above 16384 get trimmed once compaction runs
-- `/Users/aqian/dsh-unity/skills/optimize-web/SKILL.md` [size]: SKILL.md is 38808 bytes; bodies above 16384 get trimmed once compaction runs
-- `/Users/aqian/dsh-unity/skills/setup-vivox-voice-chat/SKILL.md` [size]: SKILL.md is 16730 bytes; bodies above 16384 get trimmed once compaction runs
-- `/Users/aqian/dsh-unity/skills/unity-cli/SKILL.md` [size]: SKILL.md is 71562 bytes; bodies above 16384 get trimmed once compaction runs
-- `/Users/aqian/dsh-unity/skills/unity-pipeline/SKILL.md` [size]: SKILL.md is 19505 bytes; bodies above 16384 get trimmed once compaction runs
+None.
 
 ## Failures
 

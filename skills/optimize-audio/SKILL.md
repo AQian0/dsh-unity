@@ -84,49 +84,9 @@ If the symptom is ambiguous, ask: "Is the problem audio memory usage, DSP CPU sp
 
 Use the findings from Section 2 to determine which sub-section applies. More than one may apply simultaneously.
 
-### 4A. Force To Mono and Spatial Settings
+## 4. Primary Diagnostic Workflow
 
-For any AudioSource where `spatialBlend > 0` (3D positioned sound):
-
-1. **Check clip channel count:** Use `script eval` to read `audioSource.clip.channels`. If `channels == 2` and `spatialBlend == 1`, only the left channel plays — this is a bug, not a feature.
-2. **Recommend Force To Mono:** Use the read importer recipe in [resources/audio-import-api.md](resources/audio-import-api.md) to inspect current settings, then apply Force To Mono using the force-to-mono recipe.
-3. **Apply and reimport:** Report before/after channel counts to the user.
-4. **Verify spatial blend:** Use `script eval` to confirm `audioSource.spatialBlend` is `1.0` (full 3D) and `audioSource.rolloffMode` is set to an appropriate curve.
-
-### 4B. AudioMixer Audit
-
-1. **Measure group depth:** Use `script eval` to walk the mixer's group tree and count levels. More than 3 levels (Master → SFX / Music / Voice → sub-bus) adds routing overhead every frame, even when children are silent.
-2. **Check effects on silent groups:** Use `script eval` to query each group's effects list. Effects such as `AudioReverbFilter` run their DSP at full cost even when no AudioSource routes to that group.
-3. **Flag SFX Reverb on parent groups:** This is the most expensive built-in effect. If found on the Master or a high-level group, flag it explicitly.
-4. **Present recommendations to the user:**
-   - Remove or bypass effects on groups that have no active sources.
-   - Use **snapshots** to switch mix states (combat / explore / pause) rather than toggling effects at runtime.
-   - Flatten unnecessary sub-buses; redirect sources to a shallower ancestor.
-
-   **WAIT for the user to approve the mixer changes before applying.**
-
-5. **Verify DSP buffer size:** If `bufferLength` from Pre-Flight is very small (< 256), recommend increasing it — see DSP Buffer Size Guidelines in [resources/platform-settings.md](resources/platform-settings.md).
-
-### 4C. Compression Quality Tuning
-
-1. **Read current compression format:** Use the read importer recipe in [resources/audio-import-api.md](resources/audio-import-api.md) to read `compressionFormat` and `quality` for the clips reported by the user.
-2. **Apply the platform matrix:** See the Compression Format Matrix in [resources/platform-settings.md](resources/platform-settings.md) for per-platform recommendations.
-3. **Warn about lossy sources:** Use the lossy source check recipe in [resources/audio-import-api.md](resources/audio-import-api.md). If the original file is MP3, warn the user that lossy source quality is lost permanently after Unity re-encodes. Recommend WAV or AIFF sources.
-
-### 4D. Mobile Sample Rate Override
-
-1. **Identify SFX clips on mobile target:** Use the scene-component query recipe for `UnityEngine.AudioSource` and filter for non-music, non-dialogue clips.
-2. **Read current sample rate setting:** Use the read importer recipe in [resources/audio-import-api.md](resources/audio-import-api.md) to read `sampleRateSetting` and `sampleRateOverride` for each clip.
-3. **Apply mobile override:** Use the sample rate override recipe in [resources/audio-import-api.md](resources/audio-import-api.md). See Sample Rate Recommendations in [resources/platform-settings.md](resources/platform-settings.md) for per-use-case rates.
-4. **Report savings:** Halving the sample rate halves the PCM memory cost. Report the estimated saving for each clip changed.
-
-### 4E. Load Type and Streaming
-
-1. **Audit Load Type per clip:** Use `script eval` to read `clip.loadType` for each clip found in Section 2.
-2. **Apply the decision rule:** See Load Type Decision Table in [resources/platform-settings.md](resources/platform-settings.md).
-3. **Flag mismatches:** See Load Type Mismatch Flags in [resources/platform-settings.md](resources/platform-settings.md). Report both types of mismatches to the user.
-4. **Apply `Load In Background`** for any Streaming clip — use the Load In Background recipe in [resources/audio-import-api.md](resources/audio-import-api.md).
-
+Force-to-mono and spatial settings, the mixer audit, compression tuning, mobile sample-rate overrides, and load-type decisions: [references/diagnostics.md](references/diagnostics.md).
 ## 5. Validation
 
 After any import setting or mixer change:
@@ -138,46 +98,7 @@ After any import setting or mixer change:
 
 ## 6. Troubleshooting
 
-### Stereo clip on a 3D AudioSource — only left channel audible
-
-1. Confirm `audioSource.spatialBlend == 1`.
-2. Confirm `audioSource.clip.channels == 2`.
-3. Enable `forceToMono` in the AudioClip importer and reimport. Unity mixes both channels to mono during import, preserving level with `normalize = true` (keep on).
-4. If the user does not want to reimport: set `audioSource.panStereo = 0` as a runtime workaround, but warn this does not recover stereo information.
-
-### Decompress On Load clip causes memory spike
-
-1. Confirm `clip.loadType == AudioClipLoadType.DecompressOnLoad` and `clip.length` is long (> 5 s).
-2. Switch to `Streaming` if it is music or ambience, `CompressedInMemory` if played only occasionally.
-3. If the clip is short but still large: check `clip.channels` (stereo wastes double the memory) and `clip.frequency` (high sample rate on a mobile target wastes memory). Apply Force To Mono and/or sample rate override.
-
-### AudioMixer CPU spike — DSP thread hot
-
-1. Confirm with the mixer-asset query recipe that the mixer graph exists.
-2. Use `script eval` to list all groups and their attached effects. Look for reverb, chorus, or EQ on high-level groups.
-3. Move expensive effects down to leaf groups that are only active when sources are playing.
-4. Use snapshots to bypass effect chains during gameplay states where they are not heard (e.g., bypass reverb during a menu).
-5. If the DSP buffer is small (64 or 128 samples), raise it — see DSP Buffer Size Guidelines in [resources/platform-settings.md](resources/platform-settings.md).
-
-### Vorbis quality artifacts on dialogue
-
-1. Confirm `defaultSampleSettings.compressionFormat == AudioCompressionFormat.Vorbis`.
-2. Confirm `defaultSampleSettings.quality` — default is 0.5, which is often audible on voice. Raise to 0.7–0.85.
-3. On iOS: switch to AAC instead of Vorbis (hardware decode, better quality at equivalent bitrate).
-4. Confirm the source file is lossless (WAV or AIFF). MP3 sources cannot recover quality lost before Unity's re-encode.
-
-### AudioListener count is not exactly one
-
-- **Zero listeners:** All audio will be silent. Use `script eval` to add an `AudioListener` component to the main camera: `UnityEngine.Camera.main.gameObject.AddComponent<UnityEngine.AudioListener>()`.
-- **Multiple listeners:** Unity uses the last enabled one, producing unpredictable spatialization. Use the scene-component query recipe for `UnityEngine.AudioListener` and disable all but the intended one.
-
-### `Load In Background` causes first-play silence
-
-This is expected behavior: the clip has not finished loading when `Play()` is first called. Mitigate with:
-1. Preload the clip at scene start by calling `clip.LoadAudioData()` before it is needed.
-2. Use `AudioSource.PlayScheduled()` with a slight delay to allow async load to complete.
-3. For AudioSources that must play immediately: switch to `CompressedInMemory` (synchronous on first play) rather than `Streaming` with background load.
-
+Symptom → cause → fix for the audio problems this skill covers: [references/troubleshooting.md](references/troubleshooting.md).
 ## 7. Completion
 
 After finishing the audit or optimization:

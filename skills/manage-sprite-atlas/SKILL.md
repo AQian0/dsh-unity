@@ -78,34 +78,7 @@ Search for files containing the identifier: `// [UNITY-SKILL:SPRITEATLAS]`
 
 ### 1. Delivery Mechanism (REQUIRED)
 
-Ask: "How do you want to deliver the sprite atlases?"
-
-**Option A: Built-in Data (Immediate Loading)**
-- Atlases are included in the build and loaded immediately
-- Set `includeInBuild = true`
-- **Suitable for**: Core UI, main gameplay sprites, always-needed assets
-- **Pros**: Simple, no additional packages, instant access
-- **Cons**: Increases initial build size, cannot update without new build
-
-**Option B: Late-Binding via Addressables (On-Demand Loading)**
-- Atlases are NOT included in build, loaded on-demand via Addressables
-- Set `includeInBuild = false`
-- Create Addressables entries for each atlas
-- Add addressable setup as prebuild step
-- **🚨 REQUIRED**: Build Addressables content as build step
-- **🚨 REQUIRED**: Create late-binding runtime loader script
-- **Suitable for**: DLC content, optional features, large assets, downloadable content
-- **Pros**: Smaller initial build, can update independently, on-demand loading
-- **Cons**: Requires Addressables package, async loading, network dependency
-
-| Use Case | Recommended |
-|----------|-------------|
-| Core UI sprites that are always visible | **Option A: Built-in** |
-| Tutorial or onboarding sprites | **Option A: Built-in** |
-| Level-specific sprites (100+ levels) | **Option B: Addressables** |
-| DLC or seasonal content | **Option B: Addressables** |
-| Localized UI sprites (multiple languages) | **Option B: Addressables** |
-| Character skins or cosmetics | **Option B: Addressables** |
+Before generating code, ask "How do you want to deliver the sprite atlases?" and read [delivery-mechanism.md](references/delivery-mechanism.md) to compare the two answers. It covers Built-in data against Addressables late-binding, with the trade-offs and the use cases that fit each.
 
 ### 2. SpritePacker Mode (REQUIRED)
 
@@ -140,25 +113,7 @@ say so rather than assuming the write landed.
 
 ## Critical V2 Architecture
 
-| Context | Component | Purpose | Allowed Usage |
-|---------|-----------|---------|---------------|
-| **Editor Authoring** | `SpriteAtlasAsset` | Add/remove sprites/folders; store metadata | ✅ Editor scripts only |
-| **Editor Settings** | `SpriteAtlasImporter` | Configure texture, packing, platform settings | ✅ Editor scripts only |
-| **Editor Packing** | `SpriteAtlasUtility.PackAtlases()` | *Optional* editor preview packing (not for build) | ⚠ Only for preview; atlases auto-pack at build |
-| **Runtime** | `SpriteAtlas` | Query packed sprites (read-only) | ✅ Runtime scripts only |
-| **Runtime Loading** | `SpriteAtlasManager` | Dynamic loading callbacks | ✅ Runtime scripts only |
-
-### Forbidden Cross-Context Usage (Common Error Sources)
-
-| ❌ Invalid Pattern | ✅ Correct Pattern |
-|--------------------|-------------------|
-| `new SpriteAtlas()` in editor code | Use `SpriteAtlasAsset` + `SpriteAtlasImporter` |
-| `AssetDatabase.LoadAssetAtPath<SpriteAtlas>(...)` in editor | Use `SpriteAtlasAsset.Load(...)` |
-| `SpriteAtlasAsset.GetPackables()` in editor | Use `SpriteAtlas.GetPackables()` |
-| Modifying `SpriteAtlas` in editor scripts | Modify `SpriteAtlasAsset` → reimport → use `SpriteAtlasImporter` |
-| Create variants from original packable objects (sprites/folders) | Creating variants from a Master runtime `SpriteAtlas` |
-
-**NEVER script against `SpriteAtlas` in editor code** — it is *only* for runtime use in V2 except for GetPackables.
+Read [v2-architecture.md](references/v2-architecture.md) before writing any atlas code, so editor authoring and runtime access stay in their own contexts. It gives the component-per-context table and the invalid-to-correct pairs behind most cross-context errors.
 
 ## Core V2 Workflow (Reference Only - Use Prebuild Instead)
 
@@ -204,65 +159,7 @@ See [references/addressables-delivery.md](references/addressables-delivery.md) f
 
 #### Complete Workflow
 
-```
-User Request
-    ↓
-Step 0: Check for existing scripts with [UNITY-SKILL:SPRITEATLAS] identifier
-    ↓
-    ├─ Found existing scripts?
-    │   ↓ YES
-    │   Ask user: Update existing / Create new / Abort
-    │   ↓
-    │   Handle user choice
-    │
-    └─ NO existing scripts or user chose "Create new"
-        ↓
-        Ask "Built-in data or Addressables?"
-        ↓
-        ├─ Option A: Built-in
-        │   ↓
-        │   Generate 1 script: Prebuild generator (includeInBuild=true)
-        │
-        └─ Option B: Addressables
-            ↓
-            Generate 3 scripts:
-              1. Prebuild: Generate atlases + create Addressables entries (includeInBuild=false)
-              2. Postprocess: Build Addressables bundles
-              3. Runtime: Late-binding loader component
-```
-
-**Step 3: Customize Categorization Rules**
-
-Edit the `OnPreprocessBuild` method to match your project's sprite organization. Choose one or combine multiple strategies:
-
-| Strategy | When to Use | Implementation |
-|----------|-------------|----------------|
-| **Folder-based** | Sprites organized by folder structure | `GenerateAtlasByFolder("Assets/Art/UI", "Assets/Atlases/UI.spriteatlasv2")` |
-| **Naming convention** | Sprites follow naming patterns | `GenerateAtlasByNaming("Assets/Art", "icon_", "Assets/Atlases/Icons.spriteatlasv2")` |
-| **Asset labels** | Sprites tagged with labels |
-| **Scene-based** | Sprites used in specific scenes | Query scene references |
-
-**Step 4: Build Your Project**
-
-Atlases are automatically generated/updated during build. **No manual menu clicks required.** This is why prebuild is the default approach.
-
-**For Built-in Data (Option A):**
-- Atlases are included in build
-- Ready for immediate use at runtime
-
-**For Addressables (Option B) - Additional Required Steps:**
-
-You MUST generate THREE scripts (not just one):
-
-1. **Prebuild script** (IPreprocessBuildWithReport) - Generates atlases and creates Addressables entries automatically
-2. **Build Addressables script** (IPostprocessBuildWithReport) - Builds Addressables content bundles
-3. **Late-binding runtime loader** (MonoBehaviour) - Handles on-demand loading via SpriteAtlasManager
-
-The build process will:
-- Generate atlases (prebuild step)
-- Create addressable entries automatically
-- Build addressables content bundles (postprocess step)
-- At runtime: Late-binding loader automatically loads atlases when sprites are first accessed
+Read [complete-workflow.md](references/complete-workflow.md) for the end-to-end flow, including the categorization rules and build steps that follow it. It traces the branch from the existing-script check through the Option A or Option B script set.
 
 ### Common Categorization Patterns
 
@@ -285,45 +182,11 @@ Generate variant atlases for different resolutions.
 
 ## Advanced: Manual Authoring (NOT Default - Use Only When Explicitly Requested)
 
-> ⚠ **WARNING**: Manual authoring is NOT the default approach. Only use these patterns when the user EXPLICITLY requests manual control or editor preview during development.
-
-> 🚨 **DEFAULT APPROACH**: Use prebuild generation with `IPreprocessBuildWithReport` instead. See [Quick Start](#quick-start-automated-prebuild-generation-default-approach).
-
-**Manual authoring is appropriate ONLY for:**
-- Hand-optimized sprite layouts where exact positioning matters
-- Custom sprite ordering requirements
-- Editor preview during authoring workflow
-- Explicitly requested by user
-
-**DO NOT use manual authoring when:**
-- User asks to "create sprite atlas" (use prebuild)
-- User asks to "optimize sprites" (use prebuild)
-- User asks for automated workflow (use prebuild)
-- No specific manual control requirement mentioned
-
-For complete manual authoring patterns including master atlas creation, variant creation, and runtime loading, see [references/manual-authoring.md](references/manual-authoring.md).
+Read [advanced-manual-authoring.md](references/advanced-manual-authoring.md) only when the user explicitly asks for manual control, custom sprite ordering, or an editor preview. It lists when manual authoring applies and when it does not, then points at the full patterns.
 
 ## Key Requirements (V2-Specific)
 
-1. **🚨 ALWAYS check for existing scripts FIRST**: Before generating code, scan for scripts with `[UNITY-SKILL:SPRITEATLAS]` identifier and prompt user to update or create new
-2. **🚨 ALWAYS tag generated scripts**: Include skill identifier at the top of every generated script for future detection
-3. **🚨 ALWAYS ask for delivery mechanism**: Ask user "Built-in data or Addressables?" before generating code
-4. **🚨 ALWAYS enable Sprite Packer mode**: Set `EditorSettings.spritePackerMode = SpritePackerMode.SpriteAtlasV2` in prebuild script
-5. **🚨 ALWAYS use prebuild generation**: Implement `IPreprocessBuildWithReport` as the DEFAULT approach for creating atlases
-6. **🚨 ONLY add sprites from Assets/ folder**: Never add sprites from Packages, built-in assets, or external locations
-7. **🚨 For Addressables delivery, ALWAYS generate THREE scripts**:
-   - Prebuild atlas generator with Addressables setup
-   - `IPostprocessBuildWithReport` to build Addressables content
-   - Late-binding runtime loader script (extends `SpriteAtlasManager`)
-8. **Set includeInBuild correctly**: `true` for built-in data, `false` for Addressables
-9. **Two-Step Editor Pattern**: Create with `SpriteAtlasAsset` → Save → Import → Configure via `SpriteAtlasImporter` → SaveAndReimport()
-10. **Never use `SpriteAtlas` in editor code** — except `SpriteAtlas.GetPackables()` instance method on a loaded runtime atlas
-11. **Variants reference master**: Use `SetMasterAtlas(SpriteAtlas)` with runtime instance loaded via `AssetDatabase.LoadAssetAtPath<SpriteAtlas>()`
-12. **Platform format assignment**: Use `format = TextureImporterFormat.ASTC_6x6` directly (no cast)
-13. **File extension**: V2 atlases use `.spriteatlasv2` (not `.spriteatlas`)
-14. **`SpriteAtlasUtility.PackAtlases()` is optional**: Only for editor preview; build-time packing is automatic
-
-For common errors and invalid patterns, see [references/common-errors.md](references/common-errors.md).
+Read [key-requirements.md](references/key-requirements.md) before writing atlas code and again before declaring the work done. It is the V2 checklist, covering script tagging, `includeInBuild`, the two-step importer pattern, `.spriteatlasv2`, and platform formats.
 
 ## Detailed Reference
 
@@ -336,16 +199,4 @@ For common errors and invalid patterns, see [references/common-errors.md](refere
 
 ## Namespaces
 
-**Editor Scripts:**
-```csharp
-using UnityEditor;            // AssetImporter, AssetDatabase
-using UnityEditor.U2D;        // SpriteAtlasAsset, SpriteAtlasImporter, SpriteAtlasUtility
-using UnityEngine;            // Runtime types (e.g., TextureImporterFormat)
-using UnityEngine.U2D;        // SpriteAtlas
-```
-
-**Runtime Scripts:**
-```csharp
-using UnityEngine;            // Core Unity types
-using UnityEngine.U2D;        // SpriteAtlas, SpriteAtlasManager
-```
+Read [namespaces.md](references/namespaces.md) when a type does not resolve, because `UnityEditor.U2D` and `UnityEngine.U2D` hold different V2 types. It gives the exact `using` blocks for editor and runtime scripts.
