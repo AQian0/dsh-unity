@@ -283,7 +283,7 @@ async function main() {
     skillDir: skillsDir,
     providerName: 'unity',
     source: 'unity',
-    rank: 350,
+    rank: 240,
     logger: { warn: (message) => providerWarnings.push(message) },
   });
 
