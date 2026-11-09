@@ -1,0 +1,635 @@
+#!/usr/bin/env node
+/**
+ * Audit the packaged Unity skills against the DeepSeek Harness skill rules.
+ *
+ * The validator deliberately drives the plugin's own code path instead of a
+ * private re-implementation: discovery and loading go through
+ * `createUnitySkillReader` from `../lib/skills.js`, so a skill that the plugin
+ * would silently skip shows up here as a failure. Parsing goes through
+ * `parseSkillMarkdown` from `../lib/frontmatter.js`. The skills live in this
+ * package and are edited here, so the audit asks one question only: can the
+ * harness discover and load them? It never compares against an external tree.
+ *
+ * Usage:
+ *   node scripts/validate-skills.mjs [skillsDir] [--report <file>]
+ *
+ * Exit code 0 when every check passes, 1 on any failure. Warnings (missing
+ * optional resource files, unusual frontmatter keys, ...) never change the exit
+ * code.
+ *
+ * @module dsh-unity/scripts/validate-skills
+ */
+
+import { readdir, readFile, stat, writeFile, mkdir } from 'node:fs/promises';
+import { dirname, join, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { SKILL_NAME, parseSkillMarkdown, splitFrontmatter } from '../lib/frontmatter.js';
+import { createUnitySkillReader } from '../lib/skills.js';
+
+/** Repository root, derived from this script so the validator works from any cwd. */
+const PACKAGE_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
+
+/** Frontmatter keys the DSH skill provider understands itself. */
+const STANDARD_KEYS = new Set([
+  'name',
+  'description',
+  'whenToUse',
+  'disable-model-invocation',
+  'user-invocable',
+]);
+
+/** Directory prefixes that make a reference unambiguously skill-relative. */
+const RESOURCE_PREFIX = /^(?:references|scripts|assets|examples|resources)\//;
+
+/** Inline code span that is exactly one skill-relative path. */
+const RESOURCE_SPAN = /^(?:references|scripts|assets|examples|resources)\/[A-Za-z0-9_./-]+\/?$/;
+
+/** Characters that mark a template or glob rather than a literal path. */
+const NON_LITERAL = /[*<>{}()[\]$\\]/;
+
+/**
+ * A mention that the surrounding prose explicitly says does not exist, such as
+ * "(no `references/index.md` or README hub)" in setup-multiplayer-services.
+ */
+const NEGATED_PREFIX = /(?:\bno\b|\bnot\b|\bwithout\b|\bnever\b|n['\u2019]t\b)[^,;)\n]{0,80}$/i;
+
+/** Skill-relative link target, including a trailing `#anchor`. */
+function normalizeReference(target) {
+  return target.replace(/#.*$/u, '').replace(/[.,;:!?]+$/u, '');
+}
+
+/**
+ * Whether a candidate path token should be treated as a skill-relative resource.
+ *
+ * @param {string} token - normalized token.
+ * @returns {boolean} true for literal paths under a known resource directory.
+ */
+function isSkillRelativePath(token) {
+  return RESOURCE_PREFIX.test(token) && !NON_LITERAL.test(token);
+}
+
+/**
+ * Collect every skill-relative resource reference from a Markdown body.
+ *
+ * Three shapes are recognized: Markdown link targets, inline code spans that
+ * are exactly one path, and bare prose paths such as `scripts/Foo.cs`. Mentions
+ * the sentence marks as absent are skipped.
+ *
+ * @param {string[]} lines - body lines.
+ * @param {number} firstLineNumber - file line number of `lines[0]`.
+ * @returns {Map<string, number>} reference path to first mentioning line.
+ */
+function collectReferences(lines, firstLineNumber) {
+  const references = new Map();
+  const note = (path, index) => {
+    if (!references.has(path)) references.set(path, firstLineNumber + index);
+  };
+  lines.forEach((line, index) => {
+    // Markdown link targets: [label](references/file.md#anchor)
+    for (const match of line.matchAll(/\]\(([^)\s]+)/gu)) {
+      const path = normalizeReference(match[1]);
+      if (isSkillRelativePath(path) && !NEGATED_PREFIX.test(line.slice(0, match.index))) {
+        note(path, index);
+      }
+    }
+    // Inline code spans: `references/file.md`
+    for (const match of line.matchAll(/`([^`\n]+)`/gu)) {
+      const path = normalizeReference(match[1]);
+      if (RESOURCE_SPAN.test(path) && !NEGATED_PREFIX.test(line.slice(0, match.index))) {
+        note(path, index);
+      }
+    }
+    // Bare prose paths, with links and code spans removed to avoid double reads.
+    const prose = line.replace(/\[[^\]]*\]\([^)]*\)/gu, '').replace(/`[^`\n]+`/gu, '');
+    for (const match of prose.matchAll(/(?<![\w/.:-])((?:references|scripts|assets|examples|resources)\/[A-Za-z0-9_./-]+)/gu)) {
+      const path = normalizeReference(match[1]);
+      if (isSkillRelativePath(path) && !NEGATED_PREFIX.test(prose.slice(0, match.index))) {
+        note(path, index);
+      }
+    }
+  });
+  return references;
+}
+
+/** Follow symlinks when deciding whether a directory entry is a skill folder. */
+async function isDirectoryEntry(parent, entry) {
+  if (entry.isDirectory()) return true;
+  if (!entry.isSymbolicLink()) return false;
+  try {
+    return (await stat(join(parent, entry.name))).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Entry point.
+ *
+ * @returns {Promise<number>} process exit code.
+ */
+async function main() {
+  let options;
+  try {
+    options = parseArguments(process.argv.slice(2));
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n\n${USAGE}\n`);
+    return 2;
+  }
+  if (options.help) {
+    process.stdout.write(`${USAGE}\n`);
+    return 0;
+  }
+  const skillsDir = resolve(options.skillsDir);
+
+  const failures = [];
+  const warnings = [];
+  const providerWarnings = [];
+  const rows = [];
+  const fail = (file, check, message) => failures.push({ file, check, message });
+  const warn = (file, check, message) => warnings.push({ file, check, message });
+
+  // ---------------------------------------------------------------------------
+  // Directory shape: every skill folder must carry SKILL.md.
+  // ---------------------------------------------------------------------------
+  let entries;
+  try {
+    entries = await readdir(skillsDir, { withFileTypes: true });
+  } catch (error) {
+    process.stderr.write(`cannot read skills directory ${skillsDir}: ${String(error)}\n`);
+    return 1;
+  }
+  const rootFiles = entries.filter((entry) => !entry.isDirectory() && !entry.isSymbolicLink());
+  for (const entry of rootFiles) {
+    warn(join(skillsDir, entry.name), 'layout', 'file is not a skill folder and is not served by the provider');
+  }
+  const folders = [];
+  for (const entry of [...entries].sort((left, right) => left.name.localeCompare(right.name))) {
+    if (await isDirectoryEntry(skillsDir, entry)) folders.push(entry.name);
+  }
+  if (folders.length === 0) {
+    process.stderr.write(`no skill folders found under ${skillsDir}\n`);
+    return 1;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Per-skill content checks, parsed through the plugin's own frontmatter reader.
+  // ---------------------------------------------------------------------------
+  let referencedTotal = 0;
+  let referencedResolved = 0;
+  const skillRecords = new Map();
+
+  for (const folder of folders) {
+    const dir = join(skillsDir, folder);
+    const file = join(dir, 'SKILL.md');
+    const row = {
+      folder,
+      name: '',
+      description: '',
+      descriptionLength: 0,
+      extras: [],
+      file,
+    };
+    rows.push(row);
+    skillRecords.set(folder, row);
+
+    let fileInfo;
+    try {
+      fileInfo = await stat(file);
+    } catch {
+      fail(file, 'SKILL.md', 'skill folder has no SKILL.md');
+      continue;
+    }
+    if (!fileInfo.isFile()) {
+      fail(file, 'SKILL.md', 'SKILL.md is not a regular file');
+      continue;
+    }
+
+    const raw = await readFile(file, 'utf8');
+    let parsed;
+    try {
+      parsed = parseSkillMarkdown(raw);
+    } catch (error) {
+      fail(file, 'frontmatter', `frontmatter does not parse with lib/frontmatter.js: ${String(error)}`);
+      continue;
+    }
+    if (parsed === undefined) {
+      fail(file, 'frontmatter', 'document has no YAML frontmatter fence');
+      continue;
+    }
+    const { data, body } = parsed;
+
+    const name = typeof data.name === 'string' ? data.name.trim() : '';
+    row.name = name;
+    if (typeof data.name !== 'string') {
+      fail(file, 'name', `frontmatter name must be a string, got ${typeName(data.name)}`);
+    } else if (!SKILL_NAME.test(name)) {
+      fail(file, 'name', `name "${name}" is not kebab-case (${SKILL_NAME})`);
+    } else if (name !== folder) {
+      fail(file, 'name', `name "${name}" does not match folder "${folder}"`);
+    }
+
+    const description = typeof data.description === 'string' ? data.description.trim() : '';
+    row.description = description;
+    row.descriptionLength = description.length;
+    if (typeof data.description !== 'string') {
+      fail(file, 'description', `frontmatter description must be a string, got ${typeName(data.description)}`);
+    } else if (description.length === 0) {
+      fail(file, 'description', 'frontmatter description is empty');
+    } else if (description.includes('<') || description.includes('>')) {
+      fail(file, 'description', 'frontmatter description contains "<" or ">"');
+    }
+
+    if (body.trim() === '') {
+      fail(file, 'body', 'skill body is empty');
+    }
+
+    row.extras = Object.keys(data).filter((key) => !STANDARD_KEYS.has(key)).sort();
+
+    // Resource references are warnings: several are optional by design.
+    const split = splitFrontmatter(raw);
+    if (split !== undefined) {
+      const yamlLines = split.yaml === '' ? 0 : split.yaml.split('\n').length;
+      const bodyLines = split.body.split('\n');
+      const references = collectReferences(bodyLines, yamlLines + 3);
+      for (const [reference, line] of references) {
+        referencedTotal += 1;
+        const target = resolve(join(dir, reference));
+        let inside = target === dir || target.startsWith(`${dir}${sep}`);
+        if (!inside) {
+          warn(file, 'reference', `line ${line}: "${reference}" resolves outside the skill folder`);
+          continue;
+        }
+        let info;
+        try {
+          info = await stat(target);
+        } catch {
+          warn(file, 'reference', `line ${line}: referenced path "${reference}" does not exist`);
+          continue;
+        }
+        if (!info.isFile() && !info.isDirectory()) {
+          warn(file, 'reference', `line ${line}: "${reference}" is neither a file nor a directory`);
+          continue;
+        }
+        referencedResolved += 1;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Provider checks: discovery and loading must agree with the files on disk.
+  // ---------------------------------------------------------------------------
+  const reader = createUnitySkillReader({
+    skillDir: skillsDir,
+    providerName: 'unity',
+    source: 'unity',
+    rank: 350,
+    logger: { warn: (message) => providerWarnings.push(message) },
+  });
+
+  let candidates = [];
+  try {
+    candidates = await reader.list();
+  } catch (error) {
+    fail(skillsDir, 'provider.list', `createUnitySkillReader.list() threw: ${String(error)}`);
+  }
+
+  const candidateByDir = new Map();
+  for (const candidate of candidates) {
+    const dir = resolve(candidate.locator?.dir ?? '');
+    if (candidateByDir.has(dir)) {
+      fail(candidate.locator?.file ?? dir, 'provider.list', 'provider advertised two candidates for one folder');
+      continue;
+    }
+    candidateByDir.set(dir, candidate);
+  }
+
+  const names = new Map();
+  for (const candidate of candidates) {
+    const group = names.get(candidate.name) ?? [];
+    group.push(candidate);
+    names.set(candidate.name, group);
+  }
+  for (const [name, group] of names) {
+    if (group.length < 2) continue;
+    for (const candidate of group) {
+      fail(candidate.locator?.file ?? skillsDir, 'unique names', `skill name "${name}" is advertised ${group.length} times`);
+    }
+  }
+
+  let loaded = 0;
+  for (const folder of folders) {
+    const row = skillRecords.get(folder);
+    const candidate = candidateByDir.get(resolve(join(skillsDir, folder)));
+    if (candidate === undefined) {
+      fail(join(skillsDir, folder, 'SKILL.md'), 'provider.list', 'folder is not advertised by createUnitySkillReader.list()');
+      continue;
+    }
+    if (candidate.name !== folder) {
+      fail(candidate.locator.file, 'provider.list', `provider advertises name "${candidate.name}" for folder "${folder}"`);
+    }
+    if (candidate.description.trim() === '') {
+      fail(candidate.locator.file, 'provider.list', 'provider advertised an empty description');
+    }
+    if (row.description !== candidate.description) {
+      fail(candidate.locator.file, 'provider.list', 'provider description differs from parsed frontmatter');
+    }
+    let skill;
+    try {
+      skill = await reader.load(candidate);
+    } catch (error) {
+      fail(candidate.locator.file, 'provider.load', `createUnitySkillReader.load() threw: ${String(error)}`);
+      continue;
+    }
+    if (skill === undefined) {
+      fail(candidate.locator.file, 'provider.load', 'createUnitySkillReader.load() returned undefined');
+      continue;
+    }
+    loaded += 1;
+    if (typeof skill.content !== 'string' || skill.content.trim() === '') {
+      fail(candidate.locator.file, 'provider.load', 'loaded skill has an empty body');
+    }
+    if (skill.name !== candidate.name || skill.description !== candidate.description) {
+      fail(candidate.locator.file, 'provider.load', 'loaded name/description differ from the advertised candidate');
+    }
+    if (skill.invocation?.modelInvocable !== true || skill.invocation?.userInvocable !== true) {
+      warn(candidate.locator.file, 'provider.load', `invocation policy is not fully open (${JSON.stringify(skill.invocation)})`);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Summary and report.
+  // ---------------------------------------------------------------------------
+  const failedSkills = rows.filter((row) => failureUnder(failures, join(skillsDir, row.folder))).length;
+  const countFailures = (...checks) => failures.filter((failure) => checks.includes(failure.check)).length;
+  const referenceWarnings = warnings.filter((warning) => warning.check === 'reference').length;
+  const extras = new Map();
+  for (const row of rows) {
+    for (const key of row.extras) extras.set(key, (extras.get(key) ?? 0) + 1);
+  }
+
+  const summary = {
+    skills: rows.length,
+    passed: rows.length - failedSkills,
+    failedSkills,
+    candidates: candidates.length,
+    loaded,
+    failures: failures.length,
+    warnings: warnings.length,
+    providerWarnings: providerWarnings.length,
+    references: referencedTotal,
+    referencesResolved: referencedResolved,
+    referenceWarnings,
+    failureCounts: {
+      layout: countFailures('SKILL.md', 'layout'),
+      frontmatter: countFailures('frontmatter'),
+      name: countFailures('name'),
+      description: countFailures('description'),
+      unique: countFailures('unique names'),
+      body: countFailures('body'),
+      providerList: countFailures('provider.list'),
+      providerLoad: countFailures('provider.load'),
+    },
+    extrasKeys: [...extras.keys()].sort(),
+    extrasSkills: rows.filter((row) => row.extras.length > 0).length,
+    failuresList: failures,
+    warningsList: warnings,
+    providerWarningsList: providerWarnings,
+    rows,
+    skillsDir,
+  };
+
+  process.stdout.write(renderConsole(summary));
+  if (options.report !== undefined) {
+    const reportPath = resolve(options.report);
+    await mkdir(dirname(reportPath), { recursive: true });
+    await writeFile(reportPath, renderMarkdown(summary), 'utf8');
+    process.stdout.write(`\nreport written to ${reportPath}\n`);
+  }
+  return failures.length === 0 ? 0 : 1;
+}
+
+/** Type name for diagnostics. */
+function typeName(value) {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
+/** CLI usage text. */
+const USAGE = `Usage: node scripts/validate-skills.mjs [skillsDir] [--report <file>]
+
+  skillsDir        directory holding skill bundles (default: ./skills)
+  --report <file>  also write the Markdown audit report to this path
+
+Exit code 0 when every failure check passes, 1 on failures, 2 on usage errors.`;
+
+/**
+ * Parse command-line arguments.
+ *
+ * @param {string[]} argv - arguments after the script name.
+ * @returns {{ skillsDir: string, report?: string, positional?: string, help: boolean }} options.
+ */
+function parseArguments(argv) {
+  const options = { skillsDir: 'skills', help: false, positional: undefined };
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    if (argument === '--help' || argument === '-h') {
+      options.help = true;
+    } else if (argument === '--report') {
+      const value = argv[index + 1];
+      if (value === undefined || value.startsWith('--')) throw new Error(`${argument} needs a value`);
+      options.report = value;
+      index += 1;
+    } else if (argument.startsWith('-')) {
+      throw new Error(`unknown option ${argument}`);
+    } else if (options.positional === undefined) {
+      options.skillsDir = argument;
+      options.positional = argument;
+    } else {
+      throw new Error(`unexpected argument ${argument}`);
+    }
+  }
+  return options;
+}
+
+/**
+ * Whether any recorded failure belongs to a skill folder.
+ *
+ * @param {Array<{ file: string }>} failures - recorded failures.
+ * @param {string} dir - absolute skill folder.
+ * @returns {boolean} true when a failure path is inside that folder.
+ */
+function failureUnder(failures, dir) {
+  return failures.some((failure) => failure.file === dir || failure.file.startsWith(`${dir}${sep}`));
+}
+
+/**
+ * Render the console summary.
+ *
+ * @param {object} summary - collected results.
+ * @returns {string} text for stdout.
+ */
+function renderConsole(summary) {
+  const lines = [];
+  lines.push(`Unity skill audit — ${summary.skillsDir}`);
+  lines.push('');
+  for (const row of summary.rows) {
+    const failed = failureUnder(summary.failuresList, join(summary.skillsDir, row.folder));
+    const status = failed ? 'FAIL' : 'PASS';
+    const extras = row.extras.length === 0 ? '-' : row.extras.join(',');
+    lines.push(
+      `${status}  ${row.folder.padEnd(48)} name=${row.name || '(none)'}  desc=${String(row.descriptionLength).padStart(3)}ch  extras=${extras}`,
+    );
+  }
+  lines.push('');
+  if (summary.failuresList.length > 0) {
+    lines.push(`FAILURES (${summary.failuresList.length}):`);
+    for (const failure of summary.failuresList) {
+      lines.push(`  ${failure.file} [${failure.check}] ${failure.message}`);
+    }
+    lines.push('');
+  }
+  if (summary.warningsList.length > 0) {
+    lines.push(`WARNINGS (${summary.warningsList.length}):`);
+    for (const warning of summary.warningsList) {
+      lines.push(`  ${warning.file} [${warning.check}] ${warning.message}`);
+    }
+    lines.push('');
+  }
+  if (summary.providerWarningsList.length > 0) {
+    lines.push(`PROVIDER WARNINGS (${summary.providerWarningsList.length}):`);
+    for (const message of summary.providerWarningsList) lines.push(`  ${message}`);
+    lines.push('');
+  }
+  lines.push('SUMMARY');
+  lines.push(`  skills:              ${summary.passed}/${summary.skills} passed, ${summary.failedSkills} failed`);
+  lines.push(`  provider:            ${summary.candidates} candidates listed, ${summary.loaded} loaded`);
+  lines.push(`  references:          ${summary.referencesResolved}/${summary.references} resolved`);
+  lines.push(
+    `  frontmatter extras:  ${summary.extrasKeys.length} keys across ${summary.extrasSkills} skills (informational)`,
+  );
+  lines.push(`  failures:            ${summary.failures}`);
+  lines.push(`  warnings:            ${summary.warnings}`);
+  lines.push(`  result:              ${summary.failures === 0 ? 'PASS' : 'FAIL'}`);
+  return `${lines.join('\n')}\n`;
+}
+
+/** Escape a value for a Markdown table cell. */
+function cell(value) {
+  return String(value).replaceAll('|', '\\|').replaceAll('\n', ' ');
+}
+
+/**
+ * Render the Markdown audit report.
+ *
+ * @param {object} summary - collected results.
+ * @returns {string} report source.
+ */
+function renderMarkdown(summary) {
+  const lines = [];
+  lines.push('# Unity skill audit');
+  lines.push('');
+  lines.push('Audit of the packaged Unity skills against DeepSeek Harness skill rules.');
+  lines.push('');
+  lines.push(`- Generated: ${new Date().toISOString()}`);
+  lines.push(`- Node: ${process.version}`);
+  lines.push(`- Skills directory: \`${summary.skillsDir}\``);
+  lines.push(`- Validator: \`scripts/validate-skills.mjs\` (\`npm run validate\`)`);
+  lines.push('');
+  lines.push('Discovery and loading are exercised through `createUnitySkillReader` from `lib/skills.js`');
+  lines.push('and frontmatter parsing through `parseSkillMarkdown` from `lib/frontmatter.js`, so the audit');
+  lines.push('measures what the harness itself would see.');
+  lines.push('');
+  lines.push('## Summary');
+  lines.push('');
+  lines.push(`- Skills audited: **${summary.skills}**`);
+  lines.push(`- Passed: **${summary.passed}**; failed: **${summary.failedSkills}**`);
+  lines.push(`- Failures: **${summary.failures}**; warnings: **${summary.warnings}**`);
+  lines.push(
+    `- Provider path: **${summary.candidates}/${summary.skills}** candidates listed and **${summary.loaded}/${summary.skills}** skills loaded`,
+  );
+  lines.push(
+    `- Skill-relative references: **${summary.referencesResolved}/${summary.references}** resolved on disk`,
+  );
+  lines.push(
+    `- Informational non-standard frontmatter keys: **${summary.extrasKeys.length}** keys across **${summary.extrasSkills}** skills`,
+  );
+  lines.push('');
+  lines.push('## Checks');
+  lines.push('');
+  lines.push('| Check | Result | Detail |');
+  lines.push('| --- | --- | --- |');
+  const status = (count, word = 'failure') => (count === 0 ? 'pass' : `${count} ${word}${count === 1 ? '' : 's'}`);
+  const checks = summary.failureCounts;
+  lines.push(`| SKILL.md in every skill folder | ${status(checks.layout)} | ${summary.skills} folders |`);
+  lines.push(`| Frontmatter parses (\`parseSkillMarkdown\`) | ${status(checks.frontmatter)} | ${summary.skills} skills |`);
+  lines.push(`| Name is kebab-case and matches folder | ${status(checks.name)} | ${summary.skills} skills |`);
+  lines.push(`| Description non-empty and free of \`<\`/\`>\` | ${status(checks.description)} | ${summary.skills} skills |`);
+  lines.push(`| Skill names unique | ${status(checks.unique)} | ${new Set(summary.rows.map((row) => row.name)).size} distinct names |`);
+  lines.push(`| Body non-empty | ${status(checks.body)} | ${summary.skills} skills |`);
+  lines.push(`| Provider discovery (\`list\`) | ${status(checks.providerList)} | ${summary.candidates}/${summary.skills} candidates |`);
+  lines.push(`| Provider load (\`load\`) | ${status(checks.providerLoad)} | ${summary.loaded}/${summary.skills} loaded |`);
+  lines.push(`| Skill-relative references resolve | ${status(summary.referenceWarnings, 'warning')} | ${summary.referencesResolved}/${summary.references} resolved |`);
+  lines.push('');
+  lines.push('## Skills');
+  lines.push('');
+  lines.push('| Skill folder | Parsed name | Description chars | Extra frontmatter keys |');
+  lines.push('| --- | --- | --- | --- |');
+  for (const row of summary.rows) {
+    lines.push(
+      `| \`${cell(row.folder)}\` | \`${cell(row.name || '—')}\` | ${row.descriptionLength} | ${row.extras.length === 0 ? '—' : row.extras.map((key) => `\`${cell(key)}\``).join(', ')} |`,
+    );
+  }
+  lines.push('');
+  lines.push('## Informational frontmatter keys');
+  lines.push('');
+  if (summary.extrasKeys.length === 0) {
+    lines.push('None.');
+  } else {
+    lines.push('These keys are authored for the original Claude/Codex/Antigravity loaders. DSH reads `name`,');
+    lines.push('`description`, `whenToUse`, `disable-model-invocation`, and `user-invocable`; `metadata` is');
+    lines.push('forwarded as skill metadata; the remaining keys are tolerated and ignored. They are reported');
+    lines.push('for information and are **not** failures.');
+    lines.push('');
+    lines.push('| Key | Skills using it |');
+    lines.push('| --- | --- |');
+    for (const key of summary.extrasKeys) {
+      const skills = summary.rows.filter((row) => row.extras.includes(key)).map((row) => `\`${row.folder}\``);
+      lines.push(`| \`${cell(key)}\` | ${skills.join(', ')} |`);
+    }
+  }
+  lines.push('');
+  lines.push('## Warnings');
+  lines.push('');
+  if (summary.warningsList.length === 0 && summary.providerWarningsList.length === 0) {
+    lines.push('None.');
+  } else {
+    for (const warning of summary.warningsList) {
+      lines.push(`- \`${warning.file}\` [${warning.check}]: ${warning.message}`);
+    }
+    for (const message of summary.providerWarningsList) {
+      lines.push(`- Provider warning: ${message}`);
+    }
+  }
+  lines.push('');
+  lines.push('## Failures');
+  lines.push('');
+  if (summary.failuresList.length === 0) {
+    lines.push('None.');
+  } else {
+    for (const failure of summary.failuresList) {
+      lines.push(`- \`${failure.file}\` [${failure.check}]: ${failure.message}`);
+    }
+  }
+  lines.push('');
+  return `${lines.join('\n')}\n`;
+}
+
+try {
+  const code = await main();
+  process.exitCode = code;
+} catch (error) {
+  process.stderr.write(`validate-skills failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+  process.exitCode = 1;
+}
