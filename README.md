@@ -81,6 +81,8 @@
 **前置**：一个可用的 DSH profile（Web / Desktop / CLI 均可），以及 Node.js 22.18+（推荐 24 LTS，`npm test` 与 `npm run validate` 直接运行 `.ts`，依赖 Node 内置的类型剥离）与 npm。源码是 TypeScript，包入口是编译后的 `lib/index.js`（与官方插件包的发布形态一致：仓库里是 `src/`，`npm pack` 时才编译出 `lib/`），所以**按目录安装前要先构建一次**：
 
 ```bash
+git clone https://github.com/AQian0/dsh-unity.git
+cd dsh-unity
 npm install        # 只有 typescript 与 @types/node 两个开发依赖
 npm run build      # src/ → lib/*.js + lib/types/*.d.ts（不入库）
 ```
