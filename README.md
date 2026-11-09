@@ -12,7 +12,7 @@
 - **需求被真正执行**：技能声明的 `required_editor_version` / `required_packages` 不满足时，该技能离开模型的目录，但仍可用 `/技能名` 显式载入；事实未知时不会隐藏任何技能。
 - **运行时上下文**：每个 agent 注入一条 `unity:project` 上下文，说明工程路径、Editor 版本、渲染管线、Editor/CLI 状态，以及本工程里被隐藏的技能与原因。
 - **实时刷新**：`skills/` 被 `fs.watch` 监视；新增、删除或改 `SKILL.md` 会清空解析缓存并让各 agent 的目录缓存失效，不用重启。
-- **一行插件、零运行时依赖**：`cordis.patch.yml` 只插入一个 Host 行 `unity-skills`；运行时只用 Node 内置模块，不依赖任何第三方包。仓库里的源码是 TypeScript，`npm pack`（`prepack`）时编译成 `lib/` 发布，因此按目录安装前要先构建一次，见[安装](#安装)。
+- **一行插件、零运行时依赖**：`cordis.patch.yml` 只插入一个 Host 行 `unity-skills`；运行时只用 Node 内置模块，不依赖任何第三方包。仓库里的源码是 TypeScript，`pnpm pack`（`prepack`）时编译成 `lib/` 发布，因此按目录安装前要先构建一次，见[安装](#安装)。
 - **设计说明**：为什么必须按 agent 注册、门控与降级的取舍，见 [docs/design.md](./docs/design.md)。
 
 > 这些技能会直接改你的 Unity 工程（脚本、场景、资产）；Unity CLI 可用时还会在打开的 Editor 里执行 C#。请先把工程纳入版本控制，再让 agent 动手。
@@ -78,16 +78,16 @@
 
 ## 安装
 
-**前置**：一个可用的 DSH profile（Web / Desktop / CLI 均可），以及 Node.js 22.18+（推荐 24 LTS，`npm test` 与 `npm run validate` 直接运行 `.ts`，依赖 Node 内置的类型剥离）与 npm。源码是 TypeScript，包入口是编译后的 `lib/index.js`（与官方插件包的发布形态一致：仓库里是 `src/`，`npm pack` 时才编译出 `lib/`），所以**按目录安装前要先构建一次**：
+**前置**：一个可用的 DSH profile（Web / Desktop / CLI 均可）、Node.js 22.18+（推荐 24 LTS；`pnpm test` 与 `pnpm run validate` 直接运行 `.ts`，依赖 Node 内置的类型剥离）与 pnpm（`packageManager` 固定 `pnpm@12.16.1`，用 corepack 或单独安装都行）。源码是 TypeScript，包入口是编译后的 `lib/index.js`（与官方插件包的发布形态一致：仓库里是 `src/`，`pnpm pack` 时才编译出 `lib/`），所以**按目录安装前要先构建一次**：
 
 ```bash
 git clone https://github.com/AQian0/dsh-unity.git
 cd dsh-unity
-npm install        # 只有 typescript 与 @types/node 两个开发依赖
-npm run build      # src/ → lib/*.js + lib/types/*.d.ts（不入库）
+pnpm install       # 开发依赖就是工具链：typescript、@types/node 与 vite-plus
+pnpm run build     # src/ → lib/*.js + lib/types/*.d.ts（不入库）
 ```
 
-运行时不依赖任何第三方包；构建产物也不需要额外安装。
+运行时不依赖任何第三方包；构建产物也不需要额外安装。依赖版本由入库的 `pnpm-lock.yaml` 固定（`pnpm install --frozen-lockfile` 与 CI 用同一份），仓库里不再有 `package-lock.json`。
 
 **Web GUI**：打开左侧栏的「插件 / Plugins」页，安装时 spec 填本仓库的绝对路径（换成你自己的 checkout 路径）：
 
@@ -113,7 +113,7 @@ target: /path/to/dsh-unity
 - 安装记录的是这个目录本身（本地目录依赖），不是把技能再复制一份；插件直接读这个 checkout 下的 `skills/`，所以编辑 `skills/` 之后不需要重装。
 - **技能正文的改动下次加载即生效**：每次加载都会重读文件。
 - **新增或删除技能目录、修改 frontmatter**：`skills/` 被监视，变更会清空解析缓存并让目录缓存失效，下一个会话步骤就能看到，不用重启。watcher 起不来时退回到"重启后生效"。
-- **改 `src/` 里的代码**后要重新 `npm run build` 再重启 DSH；**替换已安装的包**（升级、换一个 checkout）同理。
+- **改 `src/` 里的代码**后要重新 `pnpm run build` 再重启 DSH；**替换已安装的包**（升级、换一个 checkout）同理。
 - 插件装在 profile 上：安装与启停会把技能提供给该 profile 的**所有会话**（可见范围仍由各自的工程决定）。
 
 ## 使用
@@ -220,15 +220,30 @@ Unity project: /path/to/project (Editor 6000.3.14f1, URP, Editor open, unity CLI
 
 ## 开发与验证
 
+开发依赖就是工具链：`typescript`（构建与类型检查）、`@types/node` 与 `vite-plus`（`vp` CLI：Oxfmt 格式化 + Oxlint 规则）。版本由入库的 `pnpm-lock.yaml` 固定，CI 用 `pnpm install --frozen-lockfile`。
+
 ```bash
-npm install               # 安装 typescript 与 @types/node
-npm run build             # 编译 src/ → lib/（发布产物，不入库）
-npm run typecheck         # 用 tsconfig.test.json 检查 src/、test/、scripts/
-npm test                  # 单元测试：直接跑 TypeScript（Node 内置类型剥离）
-npm run validate          # 技能合规性：结构、frontmatter、需求字段、正文体积、资源引用
+pnpm install              # 安装 typescript、@types/node 与 vite-plus
+pnpm run build            # 编译 src/ → lib/（发布产物，不入库）
+pnpm run typecheck        # 用 tsconfig.test.json 检查 src/、test/、scripts/
+pnpm test                 # 完整门禁：vp check → tsc → node --test
+pnpm run test:unit        # 只跑单元测试：直接跑 TypeScript（Node 内置类型剥离）
+pnpm run test:coverage    # 单元测试 + 覆盖率（只统计 src/**）
+pnpm run format           # Oxfmt 格式化
+pnpm run format:check     # 只检查格式、不改文件（vp check 里也含这项检查）
+pnpm run lint             # Oxlint 检查
+pnpm run check            # vp check --deny-warnings：格式 + lint，lint 警告也计为失败
+pnpm run validate         # 技能合规性：结构、frontmatter、需求字段、正文体积、资源引用
+pnpm pack                 # 打 tarball；prepack 会先 pnpm run clean 再 pnpm run build
 ```
 
-`npm run validate` 检查的是：技能目录里有 `SKILL.md`、frontmatter 能解析、名称是 kebab-case 且与目录一致、描述非空且不含 `<`/`>`、名称唯一、正文非空、`required_*` 需求字段能解析、`SKILL.md` 不超过 16384 字节（超过即告警，见下节）、provider 能 `list()` 与 `load()` 出全部技能、以及正文里技能相对路径的资源引用在磁盘上存在。失败退出码 1；警告不影响退出码。脚本会打印本次检查的技能数、资源引用数与最大的 `SKILL.md`，这些数字随技能内容变化，以实际输出为准。
+`pnpm test` 是提交前只需要记的一条门禁：先 `vp check --deny-warnings` 跑 Oxfmt 格式检查与 Oxlint 规则（lint 警告也算失败），再用 `tsc -p tsconfig.test.json` 做类型检查，最后用 `node --test` 直接跑 `test/**/*.test.ts`。CI 跑的就是这条命令。
+
+格式化与 lint 的规则只在 `vite.config.ts` 里定义一次：Oxfmt 用 120 列、单引号，Oxlint 开 `unicorn`、`typescript`、`oxc`、`import` 插件。`vp` 只读这一份配置，不要在别处加 `.prettierrc`、`.eslintrc` 之类的副本。要自动修复就 `pnpm run check:fix`（格式 + lint）或 `pnpm run lint:fix`（只 lint）。`skills/**` 是 Unity 原样发布的内容，`fmt` 与 `lint` 都把它排除在外，格式化不会改写技能文件。
+
+工具链的 Node 版本分两条线：运行时的 `engines` 是 `>=22.18`，开发用的 `vite-plus` 1.5.0 支持 `^22.18.0 || ^24.11.0 || >=26.0.0`，所以 22.18+ 与 24 LTS 都能跑。测试仍由 Node 的类型剥离直接执行 `.ts`，构建仍只用 `tsc`——Vite+ 在这里只负责格式化与 lint，不接管测试或构建。
+
+`pnpm run validate` 检查的是：技能目录里有 `SKILL.md`、frontmatter 能解析、名称是 kebab-case 且与目录一致、描述非空且不含 `<`/`>`、名称唯一、正文非空、`required_*` 需求字段能解析、`SKILL.md` 不超过 16384 字节（超过即告警，见下节）、provider 能 `list()` 与 `load()` 出全部技能、以及正文里技能相对路径的资源引用在磁盘上存在。失败退出码 1；警告不影响退出码。脚本会打印本次检查的技能数、资源引用数与最大的 `SKILL.md`，这些数字随技能内容变化，以实际输出为准。
 
 ```bash
 node scripts/validate-skills.ts --report /tmp/skill-audit.md   # 另外写一份 Markdown 报告
@@ -236,12 +251,14 @@ node scripts/validate-skills.ts --report /tmp/skill-audit.md   # 另外写一份
 
 ### CI 与发布
 
-- `.github/workflows/ci.yml`：push 到 `main`、PR 与手动触发时，在 Node 22.18 与 24 上跑
-  `npm run typecheck`、`npm test`、`npm run validate`，构建后对 `npm pack` 的清单做冒烟检查。
+- `.github/workflows/ci.yml`：push 到 `main`、PR 与手动触发时，在 Node 22.18 与 24 的矩阵上，
+  用 `pnpm/action-setup` 安装 `packageManager` 指定的 pnpm、`setup-node` 打开 pnpm 缓存，
+  `pnpm install --frozen-lockfile` 后跑 `pnpm test` 与 `pnpm run validate`，再 `pnpm run build`
+  并对 `pnpm pack --dry-run --ignore-scripts --json` 的清单做冒烟检查。
 - `.github/workflows/release.yml`：推 `v<version>` tag 时校验 tag 与 `package.json` 版本一致、
-  提交在 `main` 上，重跑门禁并校验 tarball，然后用 npm 可信发布（GitHub OIDC，无需
-  `NPM_TOKEN`）发布到 npm 并创建 GitHub Release；首次发布与 trusted publisher 的配置见
-  workflow 顶部注释。
+  提交在 `main` 上，重跑同一门禁与构建，用 `pnpm pack` 校验 tarball 清单（34 个技能都在包里），
+  最后用 npm 可信发布（GitHub OIDC，无需 `NPM_TOKEN`）发布到 npm 并创建 GitHub Release；
+  首次发布与 trusted publisher 的配置见 workflow 顶部注释。
 
 安装后也可以直接看：
 
@@ -262,7 +279,7 @@ node scripts/validate-skills.ts --report /tmp/skill-audit.md   # 另外写一份
 - **`exclude` 按目录名匹配**：本包 34 个技能的目录名与 frontmatter `name` 全部一致（校验脚本会检查）；若将来出现不一致，`exclude` 仍以目录名为准。
 - **profile 级改动**：安装与启停影响该 profile 的所有会话；替换已安装的包需要重启 DSH。
 - **入口是技能目录与 `skill` 工具**：插件本身不额外注册斜杠菜单或提示词入口；`/技能名` 的显式调用来自 DSH 的技能机制，不是本包新增的入口。
-- **构建产物不入库**：`lib/` 是 `npm run build` 的输出并被 `.gitignore` 忽略；按目录安装前必须先构建，否则插件行会因为找不到 `lib/index.js` 而加载失败。
+- **构建产物不入库**：`lib/` 是 `pnpm run build` 的输出并被 `.gitignore` 忽略；按目录安装前必须先构建，否则插件行会因为找不到 `lib/index.js` 而加载失败。
 
 ## 许可证
 

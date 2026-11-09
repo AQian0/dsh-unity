@@ -9,7 +9,7 @@
 - **一个包，34 个技能**：装进 profile 后，技能出现在会话目录里，按需加载。
 - **目录跟随会话**：不在 Unity 工程里只保留起步技能；在工程里按 Editor 版本与已装包筛掉不适用的技能。
 - **事实交给模型**：把检测到的工程事实与"哪些技能被隐藏、为什么"写进运行时上下文，让模型陈述而不是猜。
-- **零运行时依赖**：只用 Node 内置模块（`node:fs`、`node:path`、`node:child_process` 经服务封装）；构建只在仓库侧发生（`npm run build` / `prepack` 产出 `lib/`），安装已发布的包时不再编译，也没有第三方安装依赖。
+- **零运行时依赖**：只用 Node 内置模块（`node:fs`、`node:path`、`node:child_process` 经服务封装）；构建只在仓库侧发生（`pnpm run build` / `prepack` 产出 `lib/`），安装已发布的包时不再编译，也没有第三方安装依赖。
 - **可卸载**：所有监听、watcher 与注册都在 `ctx.effect` 里，fiber 释放时统一注销。
 
 不在范围内：技能正文怎么写、什么时候该用哪个技能（由模型按描述判断），以及技能的版本管理。
@@ -30,7 +30,9 @@
 | `cordis.patch.yml`    | 只插入一个 Host 行 `unity-skills`（`config: {}`）                                                                                 |
 | `skills/`             | 34 个技能目录，每个是 `<name>/SKILL.md` + 可选的 `references/`、`scripts/`、`resources/`                                          |
 
-**构建形态**与官方插件包一致：仓库里是 `src/` 下的 TypeScript，`npm run build`（`tsc -p tsconfig.json`）产出 `lib/*.js` 与 `lib/types/*.d.ts`，`prepack` 会再跑一次构建，因此 `npm pack` 出来的 tarball 只有编译产物、`cordis.patch.yml`、`locale/`、`skills/`、图标，以及 `README.md`、`docs/`、`CHANGELOG.md` 与 `LICENSE.md`、`LICENSE-UNITY-COMPANION.md`、`NOTICE.md`。`lib/` 被 `.gitignore` 忽略，不随仓库提交；按目录安装前需要先构建。`tsconfig.test.json` 只做类型检查（`src/`、`test/`、`scripts/`），测试与脚本由 Node 内置的类型剥离直接运行 `.ts`（`engines` 要求 Node.js >=22.18）。
+**构建形态**与官方插件包一致：仓库里是 `src/` 下的 TypeScript，`pnpm run build`（`tsc -p tsconfig.json`）产出 `lib/*.js` 与 `lib/types/*.d.ts`，`prepack` 会再跑一次构建，因此 `pnpm pack` 出来的 tarball 只有编译产物、`cordis.patch.yml`、`locale/`、`skills/`、图标，以及 `README.md`、`docs/`、`CHANGELOG.md` 与 `LICENSE.md`、`LICENSE-UNITY-COMPANION.md`、`NOTICE.md`。`lib/` 被 `.gitignore` 忽略，不随仓库提交；按目录安装前需要先构建。`tsconfig.test.json` 只做类型检查（`src/`、`test/`、`scripts/`），测试与脚本由 Node 内置的类型剥离直接运行 `.ts`（`engines` 要求 Node.js >=22.18）。
+
+**开发工作流是 pnpm + Vite+**：`packageManager` 固定 `pnpm@12.16.1`，`pnpm-lock.yaml` 入库（`package-lock.json` 已移除并被 `.gitignore` 忽略），CI 用 `pnpm install --frozen-lockfile` 做可复现安装。`vite-plus` 1.5.0 只提供 `vp` CLI——Oxfmt 格式化与 Oxlint 规则，规则只在 `vite.config.ts` 一处定义（120 列、单引号；`unicorn`、`typescript`、`oxc`、`import` 插件），对应 `format`、`format:check`、`lint`、`lint:fix`、`check`、`check:fix` 脚本；`skills/**` 是 Unity 原样发布的内容，`fmt` 与 `lint` 都用 `ignorePatterns` 将它排除在外，格式化不会改写技能文件。`pnpm test` 是统一门禁：`vp check --deny-warnings` → `tsc -p tsconfig.test.json` → `node --test`。Vite+ 不接管测试或构建：测试仍由 Node 的类型剥离直接跑 `.ts`，构建仍只用 `tsc`。`vite-plus` 1.5.0 支持 `^22.18.0 || ^24.11.0 || >=26.0.0`，与 `engines` 的 `>=22.18` 在 22.18+ 与 24 LTS 两条线上重合。
 
 此外，`locale/en.json` / `locale/zh.json` 与 `icon.svg` 提供插件页的标题、描述与图标（图标使用 Lucide 的 `gamepad-2` 图形，按 ISC 许可，见 `NOTICE.md`）。许可证按路径划分：整合代码（`src/`、`test/`、`scripts/`、配置与文档）是 MIT，全文见 `LICENSE.md`；`skills/` 下的技能内容版权属于 Unity Technologies，按 Unity Companion License 使用，全文见 `LICENSE-UNITY-COMPANION.md`；各覆盖哪些路径由 `NOTICE.md` 记录。这些文件与 `CHANGELOG.md` 一起随包发布。`scripts/validate-skills.ts` 与 `test/*.test.ts` 是开发期工具（见 7.3 与第 9 节）。
 
@@ -262,26 +264,28 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 仍需重启的情况：
 
-- 改了 `src/` 里的代码（进程内模块；改完要先 `npm run build`，再重启 DSH 才会加载新的 `lib/`）；
+- 改了 `src/` 里的代码（进程内模块；改完要先 `pnpm run build`，再重启 DSH 才会加载新的 `lib/`）；
 - watcher 起不来或被关闭（退回重启时发现）；
 - 替换已安装的包（换 checkout）。
 
 ## 9. 验证方式
 
-以下命令都在仓库根目录执行，对任意 checkout 都适用：
+以下命令都在仓库根目录执行，对任意 checkout 都适用（依赖用 `pnpm install --frozen-lockfile` 安装）：
 
 ```bash
-npm run build       # src/ → lib/*.js + lib/types/*.d.ts（发布产物）
-npm run typecheck   # tsc -p tsconfig.test.json 检查 src/、test/、scripts/
-npm test            # 单元测试，直接运行 TypeScript（Node 内置类型剥离）
-npm run validate    # 技能合规性：结构、frontmatter、需求字段、正文体积、资源引用
-npm pack --dry-run  # 打包清单：确认 lib/、skills/、文档与许可证文件都在包里
+pnpm run check       # vp check --deny-warnings：Oxfmt 格式 + Oxlint 规则，lint 警告也计为失败
+pnpm run build       # src/ → lib/*.js + lib/types/*.d.ts（发布产物）
+pnpm run typecheck   # tsc -p tsconfig.test.json 检查 src/、test/、scripts/
+pnpm test            # 完整门禁：vp check → typecheck → test:unit（node --test）
+pnpm run validate    # 技能合规性：结构、frontmatter、需求字段、正文体积、资源引用
+pnpm pack --dry-run  # 打包清单：确认 lib/、skills/、文档与许可证文件都在包里
 ```
 
-- **`npm run build` / `npm run typecheck`**：TypeScript 无错误；构建产物加载后 provider 能 `list()` 出全部技能。
-- **`npm test`**：覆盖 frontmatter 解析、需求解析与求值、工程检测、门控、per-agent 注册与生命周期、watcher 注销与 catalog 装配。
-- **`npm run validate`**：技能结构与 frontmatter 合规、`required_*` 可解析、正文体积在阈值内、技能内资源引用都能在磁盘上解析；失败退出码 1，警告不影响退出码。
-- **`npm pack --dry-run`**：发布前核对 tarball 内容与 `files` 字段一致。
+- **`pnpm run check`**（也是 `pnpm test` 的第一步）：`vite.config.ts` 里的 Oxfmt 与 Oxlint 规则无违例；`skills/**` 不在检查范围内。
+- **`pnpm run build` / `pnpm run typecheck`**：TypeScript 无错误；构建产物加载后 provider 能 `list()` 出全部技能。
+- **`pnpm test`**：先格式与 lint、再类型检查、最后单元测试；测试覆盖 frontmatter 解析、需求解析与求值、工程检测、门控、per-agent 注册与生命周期、watcher 注销与 catalog 装配。
+- **`pnpm run validate`**：技能结构与 frontmatter 合规、`required_*` 可解析、正文体积在阈值内、技能内资源引用都能在磁盘上解析；失败退出码 1，警告不影响退出码。
+- **`pnpm pack --dry-run`**：发布前核对 tarball 内容与 `files` 字段一致。
 
 技能在真实会话里的表现（非 Unity 目录下可见几条、进入工程后隐藏哪些、`skills/` 变更是否即时生效）按第 5、7、8 节的规则观察，本文不记录某台机器上的运行结果。
 

@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+### 变更
+
+- 开发工具链迁移到 pnpm + Vite+：`packageManager` 固定 `pnpm@12.16.1`，新增并提交
+  `pnpm-lock.yaml`、移除 `package-lock.json`，开发命令一律改用 `pnpm install`、
+  `pnpm run …`、`pnpm test`、`pnpm pack`。
+- 新增格式与 lint 门禁（`vite-plus` 1.5.0 提供 `vp` CLI）：`format`、`format:check`、
+  `lint`、`lint:fix`、`check`、`check:fix`。规则只在 `vite.config.ts` 里定义——Oxfmt
+  120 列、单引号，Oxlint 开 `unicorn`、`typescript`、`oxc`、`import` 插件——并且
+  `vp check --deny-warnings` 让 lint 警告也计为失败。
+- `skills/**` 是 Unity 原样发布的内容，`fmt` 与 `lint` 都将它排除在外，格式化不会改写
+  技能文件。
+- `pnpm test` 成为完整门禁：`vp check` → `tsc -p tsconfig.test.json` → `node --test`；
+  只跑单元测试改用 `pnpm run test:unit`，覆盖率用 `pnpm run test:coverage`。
+- CI 与发布流水线改用 pnpm：`pnpm/action-setup` 安装 `packageManager` 指定的版本、
+  `pnpm install --frozen-lockfile`、`pnpm test`、`pnpm run validate`，再用
+  `pnpm pack --dry-run` 做 tarball 冒烟检查；发布仍走 npm 可信发布（OIDC）。
+
 ## [0.1.0] - 2026-11-09
 
 首个发布版本。
