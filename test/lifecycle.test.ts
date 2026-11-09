@@ -109,9 +109,7 @@ function createAgent(id: string, cwd: string, options: { skills?: boolean; promp
 }
 
 /** Create a throwaway Unity project. */
-async function createProject(
-  options: { version?: string; packages?: Record<string, string> } = {},
-): Promise<string> {
+async function createProject(options: { version?: string; packages?: Record<string, string> } = {}): Promise<string> {
   const { version = '6000.3.14f1', packages = { 'com.unity.ugui': '2.0.0' } } = options;
   const root = await mkdtemp(join(tmpdir(), 'dsh-unity-lifecycle-'));
   await mkdir(join(root, 'ProjectSettings'), { recursive: true });
@@ -145,7 +143,9 @@ test('each agent gets its own provider registered through its scoped context', a
   const candidates = await agent.provider?.list({ cwd: '/tmp' });
   assert.ok(candidates);
   assert.equal(candidates.length, 34);
-  const visible = candidates.filter((candidate) => candidate.invocation.modelInvocable).map((candidate) => candidate.name);
+  const visible = candidates
+    .filter((candidate) => candidate.invocation.modelInvocable)
+    .map((candidate) => candidate.name);
   assert.deepEqual(visible.sort(), ['new-unity-project', 'unity-cli', 'unity-package-management']);
 
   record.handlers.get('agent/disposed')?.({ agent });
@@ -168,7 +168,10 @@ test('a Unity project admits the skills its editor and packages satisfy', async 
     assert.equal(hidden.has('urp-postprocessing'), true, 'needs URP');
     assert.equal(hidden.has('fix-3d-physics-collisions'), false, 'needs Unity >=6000.3, which is satisfied');
     assert.equal(hidden.has('unity-cli'), false);
-    assert.match(typeof agent.context?.text === 'function' ? agent.context.text({}) : '', /Unity project: .*Editor 6000\.3\.14f1/);
+    assert.match(
+      typeof agent.context?.text === 'function' ? agent.context.text({}) : '',
+      /Unity project: .*Editor 6000\.3\.14f1/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -197,7 +200,10 @@ test('a hidden skill is still loadable, which keeps explicit invocation working'
 test('a project skill of the same name is left to the project', async () => {
   const root = await createProject();
   await mkdir(join(root, '.dsh', 'skills', 'ui-uitk'), { recursive: true });
-  await writeFile(join(root, '.dsh', 'skills', 'ui-uitk', 'SKILL.md'), '---\nname: ui-uitk\ndescription: project copy\n---\n');
+  await writeFile(
+    join(root, '.dsh', 'skills', 'ui-uitk', 'SKILL.md'),
+    '---\nname: ui-uitk\ndescription: project copy\n---\n',
+  );
   const { ctx, record } = createHarness({ list: () => [] });
   apply(ctx, CONFIG);
   const agent = createAgent('s4', root);
@@ -244,7 +250,11 @@ test('config is validated before anything registers', () => {
   const defaults = resolveSettings({});
   assert.equal(defaults.rank, 240);
   assert.equal(defaults.gateByProject, true);
-  assert.deepEqual([...defaults.workspaceSkills].sort(), ['new-unity-project', 'unity-cli', 'unity-package-management']);
+  assert.deepEqual([...defaults.workspaceSkills].sort(), [
+    'new-unity-project',
+    'unity-cli',
+    'unity-package-management',
+  ]);
 });
 
 test('disposal unwinds the listeners and the watcher', () => {

@@ -16,19 +16,19 @@
 
 ## 2. 组成
 
-| 文件 | 作用 |
-| --- | --- |
-| `src/index.ts` | 行入口：校验配置、共享解析缓存、创建 agent registry、监听 `agent/created`/`agent/disposed`、启动 watcher、在 fiber 释放时统一注销 |
-| `src/registry.ts` | 每个 agent 一份注册；事实与项目覆盖的缓存；provider 实现；全局回退 provider |
-| `src/project.ts` | 工程检测（向上找 marker、Editor 版本、manifest、Editor 锁、`unity` CLI）、工程自有技能名、`factsKey` |
-| `src/gating.ts` | 可见性决策（工作区技能、需求、项目覆盖）、候选改写、运行时上下文渲染 |
-| `src/requirements.ts` | 版本与包的解析、比较，需求的读取与求值 |
-| `src/watch.ts` | `skills/` 的 `fs.watch`，200ms 防抖，只在 `SKILL.md` 变化时触发 |
-| `src/skills.ts` | 技能发现与加载，外加按 (path, mtime, size) 命中的共享解析缓存 |
-| `src/frontmatter.ts` | 自包含的 YAML 子集读取器与 invocation 解析 |
-| `src/harness.ts` | 本包用到的 harness 契约的结构化声明（provider、prompt context、agent scope、可选服务），使构建不需要依赖 `@deepseek-ai/*` |
-| `cordis.patch.yml` | 只插入一个 Host 行 `unity-skills`（`config: {}`） |
-| `skills/` | 34 个技能目录，每个是 `<name>/SKILL.md` + 可选的 `references/`、`scripts/`、`resources/` |
+| 文件                  | 作用                                                                                                                              |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `src/index.ts`        | 行入口：校验配置、共享解析缓存、创建 agent registry、监听 `agent/created`/`agent/disposed`、启动 watcher、在 fiber 释放时统一注销 |
+| `src/registry.ts`     | 每个 agent 一份注册；事实与项目覆盖的缓存；provider 实现；全局回退 provider                                                       |
+| `src/project.ts`      | 工程检测（向上找 marker、Editor 版本、manifest、Editor 锁、`unity` CLI）、工程自有技能名、`factsKey`                              |
+| `src/gating.ts`       | 可见性决策（工作区技能、需求、项目覆盖）、候选改写、运行时上下文渲染                                                              |
+| `src/requirements.ts` | 版本与包的解析、比较，需求的读取与求值                                                                                            |
+| `src/watch.ts`        | `skills/` 的 `fs.watch`，200ms 防抖，只在 `SKILL.md` 变化时触发                                                                   |
+| `src/skills.ts`       | 技能发现与加载，外加按 (path, mtime, size) 命中的共享解析缓存                                                                     |
+| `src/frontmatter.ts`  | 自包含的 YAML 子集读取器与 invocation 解析                                                                                        |
+| `src/harness.ts`      | 本包用到的 harness 契约的结构化声明（provider、prompt context、agent scope、可选服务），使构建不需要依赖 `@deepseek-ai/*`         |
+| `cordis.patch.yml`    | 只插入一个 Host 行 `unity-skills`（`config: {}`）                                                                                 |
+| `skills/`             | 34 个技能目录，每个是 `<name>/SKILL.md` + 可选的 `references/`、`scripts/`、`resources/`                                          |
 
 **构建形态**与官方插件包一致：仓库里是 `src/` 下的 TypeScript，`npm run build`（`tsc -p tsconfig.json`）产出 `lib/*.js` 与 `lib/types/*.d.ts`，`prepack` 会再跑一次构建，因此 `npm pack` 出来的 tarball 只有编译产物、`cordis.patch.yml`、`locale/`、`skills/`、图标，以及 `README.md`、`docs/`、`CHANGELOG.md` 与 `LICENSE.md`、`LICENSE-UNITY-COMPANION.md`、`NOTICE.md`。`lib/` 被 `.gitignore` 忽略，不随仓库提交；按目录安装前需要先构建。`tsconfig.test.json` 只做类型检查（`src/`、`test/`、`scripts/`），测试与脚本由 Node 内置的类型剥离直接运行 `.ts`（`engines` 要求 Node.js >=22.18）。
 
@@ -95,20 +95,20 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 ### 4.3 候选字段
 
-| 字段 | 值 |
-| --- | --- |
-| `name` | frontmatter `name`（kebab-case） |
-| `description` | frontmatter `description` |
-| `whenToUse` | frontmatter `whenToUse`，有才带（当前 34 个都没写） |
-| `invocation` | 由 `disable-model-invocation` / `user-invocable` 解析，门控会再叠加 `modelInvocable` |
-| `requirements` | 从 `required_editor_version` / `required_packages` 读出的需求声明，供门控使用 |
-| `provider` | `providerName`，默认 `unity` |
-| `source` | 固定 `unity`（自定义标签，不参与优先级） |
-| `rank` | `rank` 配置，默认 240 |
-| `locator` | `{ dir, file }`，加载时传回 provider |
-| `resourceBase` | `{ kind: 'directory', path: <技能目录> }` |
-| `path` | `SKILL.md` 路径（加载时换成 `realpath`，便于预览） |
-| `metadata` | frontmatter `metadata`（纯映射时透传） |
+| 字段           | 值                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------ |
+| `name`         | frontmatter `name`（kebab-case）                                                     |
+| `description`  | frontmatter `description`                                                            |
+| `whenToUse`    | frontmatter `whenToUse`，有才带（当前 34 个都没写）                                  |
+| `invocation`   | 由 `disable-model-invocation` / `user-invocable` 解析，门控会再叠加 `modelInvocable` |
+| `requirements` | 从 `required_editor_version` / `required_packages` 读出的需求声明，供门控使用        |
+| `provider`     | `providerName`，默认 `unity`                                                         |
+| `source`       | 固定 `unity`（自定义标签，不参与优先级）                                             |
+| `rank`         | `rank` 配置，默认 240                                                                |
+| `locator`      | `{ dir, file }`，加载时传回 provider                                                 |
+| `resourceBase` | `{ kind: 'directory', path: <技能目录> }`                                            |
+| `path`         | `SKILL.md` 路径（加载时换成 `realpath`，便于预览）                                   |
+| `metadata`     | frontmatter `metadata`（纯映射时透传）                                               |
 
 ## 5. 技能 frontmatter 的处理
 
@@ -116,33 +116,33 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 对 34 个 `SKILL.md` 解析后的统计（字段 / 出现次数 / 处理）：
 
-| 字段 | 次数 | 处理 |
-| --- | --- | --- |
-| `name` | 34 | 读取；必须是 kebab-case，与目录名不一致时告警但仍收录 |
-| `description` | 34 | 读取；为空则跳过该技能 |
-| `required_editor_version` | 2 | 读取并**执行**：与工程 Editor 版本比较，不满足则隐藏该技能 |
-| `required_packages` | 5 | 读取并**执行**：包缺失或版本不满足则隐藏该技能 |
-| `allowed-tools` | 5 | 解析但不执行（DSH 没有技能级工具白名单） |
-| `modes` | 2 | 解析但不执行（`[agent, ask]` 形式的模式声明） |
-| `metadata` | 1 | 纯映射时透传到候选与定义 |
-| `enabled` | 1 | 解析但不执行 |
-| `whenToUse` | 0 | DSH 支持，没有技能使用 |
-| `disable-model-invocation` | 0 | DSH 支持，没有技能使用 |
-| `user-invocable` | 0 | DSH 支持，没有技能使用 |
+| 字段                       | 次数 | 处理                                                       |
+| -------------------------- | ---- | ---------------------------------------------------------- |
+| `name`                     | 34   | 读取；必须是 kebab-case，与目录名不一致时告警但仍收录      |
+| `description`              | 34   | 读取；为空则跳过该技能                                     |
+| `required_editor_version`  | 2    | 读取并**执行**：与工程 Editor 版本比较，不满足则隐藏该技能 |
+| `required_packages`        | 5    | 读取并**执行**：包缺失或版本不满足则隐藏该技能             |
+| `allowed-tools`            | 5    | 解析但不执行（DSH 没有技能级工具白名单）                   |
+| `modes`                    | 2    | 解析但不执行（`[agent, ask]` 形式的模式声明）              |
+| `metadata`                 | 1    | 纯映射时透传到候选与定义                                   |
+| `enabled`                  | 1    | 解析但不执行                                               |
+| `whenToUse`                | 0    | DSH 支持，没有技能使用                                     |
+| `disable-model-invocation` | 0    | DSH 支持，没有技能使用                                     |
+| `user-invocable`           | 0    | DSH 支持，没有技能使用                                     |
 
 ### 5.2 需求声明
 
 有需求的技能共 7 个：
 
-| 技能 | 声明 |
-| --- | --- |
-| `build-gtk` | Editor `>=6000.6` |
-| `fix-3d-physics-collisions` | Editor `>=6000.3` |
-| `asset-transformer-toolkit` | `com.unity.industry.toolkit >=4.0.0` |
+| 技能                                | 声明                                                                  |
+| ----------------------------------- | --------------------------------------------------------------------- |
+| `build-gtk`                         | Editor `>=6000.6`                                                     |
+| `fix-3d-physics-collisions`         | Editor `>=6000.3`                                                     |
+| `asset-transformer-toolkit`         | `com.unity.industry.toolkit >=4.0.0`                                  |
 | `create-tile-palette-or-rule-tiles` | `com.unity.2d.tilemap >=1.0.0`、`com.unity.2d.tilemap.extras >=4.0.0` |
-| `setup-vivox-voice-chat` | `com.unity.services.vivox >=16.4.0` |
-| `shader-graph-create-custom-node` | `com.unity.shadergraph >=17.5.0` |
-| `urp-postprocessing` | `com.unity.render-pipelines.universal >=14.0.0` |
+| `setup-vivox-voice-chat`            | `com.unity.services.vivox >=16.4.0`                                   |
+| `shader-graph-create-custom-node`   | `com.unity.shadergraph >=17.5.0`                                      |
+| `urp-postprocessing`                | `com.unity.render-pipelines.universal >=14.0.0`                       |
 
 `src/requirements.ts` 只支持这些技能用到的形状：算子 `>=`、`>`、`<=`、`<`、`=`、`^`、`~`，逗号或空格分隔多个比较，算子与版本之间可以有空格。两段版本（`6000.6`）表示一条发布线（`>=6000.6 <6000.7`），三段版本是精确版本。Editor 版本会去掉 `f1`/`b5` 这类构建通道后缀再比较；包版本保留预发布标签，且发布版高于预发布版。
 
@@ -158,12 +158,12 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 `parseInvocation()` 先按 frontmatter 得到技能自己的策略：
 
-| frontmatter | `modelInvocable` | `userInvocable` |
-| --- | --- | --- |
-| （两者都没写） | `true` | `true` |
-| `disable-model-invocation: true` | `false` | `true` |
-| `user-invocable: false` | `true` | `false` |
-| 两者都写 | 按各自值 | 按各自值 |
+| frontmatter                      | `modelInvocable` | `userInvocable` |
+| -------------------------------- | ---------------- | --------------- |
+| （两者都没写）                   | `true`           | `true`          |
+| `disable-model-invocation: true` | `false`          | `true`          |
+| `user-invocable: false`          | `true`           | `false`         |
+| 两者都写                         | 按各自值         | 按各自值        |
 
 只接受 `frontmatterBoolean` 的严格语法（YAML 布尔，以及大小写不敏感的 `true/false`、`yes/no`、`on/off`、`1/0`）；拼错的 camelCase 写法会直接报错并跳过该技能，而不是"静默允许"。
 
@@ -187,12 +187,12 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 同名技能的归属由**层**决定，`rank` 只解决同一层内的先后。
 
-| 情况 | 结果 |
-| --- | --- |
+| 情况                                                     | 结果                                                    |
+| -------------------------------------------------------- | ------------------------------------------------------- |
 | 与工程自己的 `<工程>/.dsh/skills`、`.agents/skills` 同名 | 插件不提供该名字（`respectProjectRoots`），工程那份生效 |
-| 与 `~/.dsh/skills`、`~/.agents/skills` 等外部副本同名 | 插件在 agent 自己的层里，最近层胜出 → 插件赢 |
-| 与同层 runtime 注册（rank 250）同名 | 同层内按 rank：本包 240 排在前 |
-| 回退到全局 provider 时 | 预设层的同名技能重新胜出 |
+| 与 `~/.dsh/skills`、`~/.agents/skills` 等外部副本同名    | 插件在 agent 自己的层里，最近层胜出 → 插件赢            |
+| 与同层 runtime 注册（rank 250）同名                      | 同层内按 rank：本包 240 排在前                          |
+| 回退到全局 provider 时                                   | 预设层的同名技能重新胜出                                |
 
 默认 `rank: 240` 就是按上表选的：正常路径下重名由层解决，这个值只需排在 runtime 注册（250）之前；它不承担"跨层竞争"的职责，也没有那个能力。
 
@@ -204,32 +204,32 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 ### 7.1 检测
 
-| 场景 | 行为 | 日志 |
-| --- | --- | --- |
-| 目录不在任何 Unity 工程（找不到 marker） | 返回"无工程"，按非工程门控（只留工作区技能） | 无 |
-| `ProjectVersion.txt` 读不出 `m_EditorVersion:` | Editor 版本记为未知，其余事实照常 | 无 |
-| `Packages/manifest.json` 缺失或不是合法 JSON | 包事实未知、渲染管线未知；Editor 版本仍保留 | 无 |
-| `Temp/UnityLockfile` 不存在 | 记为 Editor 未打开 | 无 |
-| `unity` 不在 PATH 或不提供服务 | 记为 CLI 不可用 | 无 |
-| 工程检测本身抛错 | 本次查询按"无工程"处理 | `unity skills: project detection failed for <cwd>: <error>` |
+| 场景                                           | 行为                                         | 日志                                                        |
+| ---------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------- |
+| 目录不在任何 Unity 工程（找不到 marker）       | 返回"无工程"，按非工程门控（只留工作区技能） | 无                                                          |
+| `ProjectVersion.txt` 读不出 `m_EditorVersion:` | Editor 版本记为未知，其余事实照常            | 无                                                          |
+| `Packages/manifest.json` 缺失或不是合法 JSON   | 包事实未知、渲染管线未知；Editor 版本仍保留  | 无                                                          |
+| `Temp/UnityLockfile` 不存在                    | 记为 Editor 未打开                           | 无                                                          |
+| `unity` 不在 PATH 或不提供服务                 | 记为 CLI 不可用                              | 无                                                          |
+| 工程检测本身抛错                               | 本次查询按"无工程"处理                       | `unity skills: project detection failed for <cwd>: <error>` |
 
 检测全程只读、尽力而为：能读到什么就报什么，读不到就是未知，不抛给调用方。
 
 ### 7.2 门控、注册与监视
 
-| 场景 | 行为 | 日志 |
-| --- | --- | --- |
-| 需求不满足 | 该候选保留在列表里，但 `modelInvocable: false`，理由写进 hidden 列表 | 无 |
-| 需求无法检查（事实未知） | 不隐藏 | 无 |
-| 工程提供了同名技能 | 该候选被丢弃（不提供） | 无 |
-| agent 的 context 里没有 `skills` 服务 | 触发一次全局回退 | `unity skills: per-agent registration is unavailable …` |
-| 没有 `agents` 服务 | 直接注册全局 provider | 同上 |
-| agent 注册过程中抛错 | 跳过该 agent，不影响其他 agent | `unity skills: agent registration failed: <error>` |
-| 注销时 disposer 抛错 | 继续注销其余部分 | `unity skills: registration cleanup failed: <error>` |
-| watcher 起不来（平台/沙箱限制） | 退回"重启后生效"，其余功能不受影响 | `unity skills: cannot watch <dir>, catalog changes need a restart: <error>` |
-| watcher 运行中报错 | 关闭 watcher | `unity skills: skill watcher stopped on <dir>: <error>` |
-| 刷新回调抛错 | 记录警告，watcher 继续 | `unity skills: catalog refresh failed: <error>` |
-| 配置不合法 | 抛 `TypeError`，该插件行加载失败 | 宿主记录加载错误 |
+| 场景                                  | 行为                                                                 | 日志                                                                        |
+| ------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 需求不满足                            | 该候选保留在列表里，但 `modelInvocable: false`，理由写进 hidden 列表 | 无                                                                          |
+| 需求无法检查（事实未知）              | 不隐藏                                                               | 无                                                                          |
+| 工程提供了同名技能                    | 该候选被丢弃（不提供）                                               | 无                                                                          |
+| agent 的 context 里没有 `skills` 服务 | 触发一次全局回退                                                     | `unity skills: per-agent registration is unavailable …`                     |
+| 没有 `agents` 服务                    | 直接注册全局 provider                                                | 同上                                                                        |
+| agent 注册过程中抛错                  | 跳过该 agent，不影响其他 agent                                       | `unity skills: agent registration failed: <error>`                          |
+| 注销时 disposer 抛错                  | 继续注销其余部分                                                     | `unity skills: registration cleanup failed: <error>`                        |
+| watcher 起不来（平台/沙箱限制）       | 退回"重启后生效"，其余功能不受影响                                   | `unity skills: cannot watch <dir>, catalog changes need a restart: <error>` |
+| watcher 运行中报错                    | 关闭 watcher                                                         | `unity skills: skill watcher stopped on <dir>: <error>`                     |
+| 刷新回调抛错                          | 记录警告，watcher 继续                                               | `unity skills: catalog refresh failed: <error>`                             |
+| 配置不合法                            | 抛 `TypeError`，该插件行加载失败                                     | 宿主记录加载错误                                                            |
 
 技能文件自身的降级仍由 reader 负责：缺 `SKILL.md`、无 frontmatter、名称不合法、描述为空都会跳过该技能并告警；目录不存在视为空目录；加载时文件消失返回 `undefined`。
 
@@ -237,24 +237,24 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 `scripts/validate-skills.ts` 走插件的真实代码路径（`src/skills.ts` 里 `createUnitySkillReader` 的 `list()`/`load()`、`src/frontmatter.ts` 的 `parseSkillMarkdown`）。
 
-| 场景 | 行为 |
-| --- | --- |
-| 缺 `SKILL.md`、frontmatter 不可解析、`name` 不是 kebab-case 或与目录不符、`description` 为空或含 `<`/`>`、重名、正文为空、provider 列不出/载不出某个技能 | failure，退出码 1 |
-| 技能内相对资源引用缺失 | warning |
-| `SKILL.md` 超过 16384 字节 | `size` warning（见第 10 节） |
-| 出现 DSH 不执行的 frontmatter 字段 | 单独作为"信息项"汇总 |
+| 场景                                                                                                                                                     | 行为                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| 缺 `SKILL.md`、frontmatter 不可解析、`name` 不是 kebab-case 或与目录不符、`description` 为空或含 `<`/`>`、重名、正文为空、provider 列不出/载不出某个技能 | failure，退出码 1            |
+| 技能内相对资源引用缺失                                                                                                                                   | warning                      |
+| `SKILL.md` 超过 16384 字节                                                                                                                               | `size` warning（见第 10 节） |
+| 出现 DSH 不执行的 frontmatter 字段                                                                                                                       | 单独作为"信息项"汇总         |
 
 ## 8. 刷新、缓存与重启
 
 缓存与失效方式：正文不缓存，其余四层各有各的失效条件。
 
-| 缓存 | 键 | 失效方式 |
-| --- | --- | --- |
-| 正文 | 无缓存 | 每次 `load()` 重读文件 |
-| 解析结果 | 文件路径 + `mtimeMs` + `size` | 文件变化或 watcher 清空 |
-| 目录（注册表） | `cwd` + scope 链 + revision | provider 的 `control.invalidate()`、注册变化、provider 注销 |
-| 工程事实 | 工作目录 | 2 秒 TTL（`FACTS_TTL_MS`）；`factsKey` 变化时主动 `invalidate()` |
-| 工程自有技能名 | 工程根 | 2 秒 TTL |
+| 缓存           | 键                            | 失效方式                                                         |
+| -------------- | ----------------------------- | ---------------------------------------------------------------- |
+| 正文           | 无缓存                        | 每次 `load()` 重读文件                                           |
+| 解析结果       | 文件路径 + `mtimeMs` + `size` | 文件变化或 watcher 清空                                          |
+| 目录（注册表） | `cwd` + scope 链 + revision   | provider 的 `control.invalidate()`、注册变化、provider 注销      |
+| 工程事实       | 工作目录                      | 2 秒 TTL（`FACTS_TTL_MS`）；`factsKey` 变化时主动 `invalidate()` |
+| 工程自有技能名 | 工程根                        | 2 秒 TTL                                                         |
 
 `factsKey` 由工程根、Editor 版本、渲染管线、Editor 开关状态和包列表拼成。`list()` 每次都重新取事实；键变了就排一个 `queueMicrotask` 调 `control.invalidate()`，让下一次快照按新事实重新门控，而不是等重启。
 

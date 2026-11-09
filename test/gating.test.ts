@@ -75,7 +75,9 @@ test('a met editor requirement keeps the skill visible', () => {
 });
 
 test('missing packages hide the skill and name the package', () => {
-  const candidates = [candidate('shader-graph-create-custom-node', { packages: [{ name: 'com.unity.shadergraph', range: '>=17.5.0' }] })];
+  const candidates = [
+    candidate('shader-graph-create-custom-node', { packages: [{ name: 'com.unity.shadergraph', range: '>=17.5.0' }] }),
+  ];
   const result = gateCatalog(candidates, modernProject, settings());
   assert.equal(result.candidates[0]?.invocation.modelInvocable, false);
   assert.match(result.hidden[0].reason, /missing package com\.unity\.shadergraph/);
@@ -123,7 +125,10 @@ test('the runtime context names the project and the hidden skills', () => {
     { name: 'urp-postprocessing', reason: 'missing package com.unity.render-pipelines.universal' },
   ]);
   assert.ok(text);
-  assert.match(text, /^Unity project: \/Project \(Editor 6000\.3\.14f1, BUILTIN, Editor closed, unity CLI available\)\./);
+  assert.match(
+    text,
+    /^Unity project: \/Project \(Editor 6000\.3\.14f1, BUILTIN, Editor closed, unity CLI available\)\./,
+  );
   assert.match(text, /skills hidden for this project: build-gtk/);
   assert.equal(renderContext(undefined, []), undefined);
 });

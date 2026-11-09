@@ -102,7 +102,8 @@ export function createUnitySkillReader(options: ReaderOptions): UnitySkillReader
     if (skillName !== entryName) {
       logger.warn(`unity skills: ${file} declares name "${skillName}" but its folder is "${entryName}"`);
     }
-    const whenToUse = typeof data.whenToUse === 'string' && data.whenToUse.trim() !== '' ? data.whenToUse.trim() : undefined;
+    const whenToUse =
+      typeof data.whenToUse === 'string' && data.whenToUse.trim() !== '' ? data.whenToUse.trim() : undefined;
     const metadata =
       typeof data.metadata === 'object' && data.metadata !== null && !Array.isArray(data.metadata)
         ? (data.metadata as Record<string, unknown>)
@@ -131,7 +132,8 @@ export function createUnitySkillReader(options: ReaderOptions): UnitySkillReader
       try {
         entries = await readdir(skillDir, { withFileTypes: true });
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ENOTDIR') return [];
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ENOTDIR')
+          return [];
         throw error;
       }
       const candidates: SkillCandidate[] = [];
@@ -158,7 +160,8 @@ export function createUnitySkillReader(options: ReaderOptions): UnitySkillReader
       try {
         raw = await readFile(locator.file, 'utf8');
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ENOTDIR') return undefined;
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ENOTDIR')
+          return undefined;
         throw error;
       }
       lookup.signal?.throwIfAborted();
@@ -168,7 +171,8 @@ export function createUnitySkillReader(options: ReaderOptions): UnitySkillReader
       const skillName = typeof data.name === 'string' ? data.name.trim() : '';
       const description = typeof data.description === 'string' ? data.description.trim() : '';
       if (!SKILL_NAME.test(skillName) || description.length === 0) return undefined;
-      const whenToUse = typeof data.whenToUse === 'string' && data.whenToUse.trim() !== '' ? data.whenToUse.trim() : undefined;
+      const whenToUse =
+        typeof data.whenToUse === 'string' && data.whenToUse.trim() !== '' ? data.whenToUse.trim() : undefined;
       const metadata =
         typeof data.metadata === 'object' && data.metadata !== null && !Array.isArray(data.metadata)
           ? (data.metadata as Record<string, unknown>)

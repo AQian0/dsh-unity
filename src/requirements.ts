@@ -147,7 +147,8 @@ export function satisfiesRange(rawRange: unknown, rawVersion: unknown): boolean 
  */
 export function readRequirements(data: Readonly<Record<string, unknown>>): SkillRequirements {
   const rawEditor = data.required_editor_version;
-  const editor = typeof rawEditor === 'string' ? rawEditor : typeof rawEditor === 'number' ? String(rawEditor) : undefined;
+  const editor =
+    typeof rawEditor === 'string' ? rawEditor : typeof rawEditor === 'number' ? String(rawEditor) : undefined;
   const packages: Array<{ name: string; range: string }> = [];
   const declared = data.required_packages;
   if (typeof declared === 'object' && declared !== null && !Array.isArray(declared)) {
@@ -179,7 +180,10 @@ export interface RequirementVerdict {
  * @param facts - detected project facts; `undefined` means no project was detected.
  * @returns the decision; `applicable` stays true when the answer is only unknown.
  */
-export function evaluateRequirements(requirements: SkillRequirements, facts: RequirementFacts | undefined): RequirementVerdict {
+export function evaluateRequirements(
+  requirements: SkillRequirements,
+  facts: RequirementFacts | undefined,
+): RequirementVerdict {
   const reasons: string[] = [];
   let unknown = false;
   if (requirements.editor !== undefined) {
@@ -189,7 +193,11 @@ export function evaluateRequirements(requirements: SkillRequirements, facts: Req
     } else {
       const verdict = satisfiesRange(requirements.editor, facts.editorVersion);
       if (verdict === false) {
-        return { applicable: false, unknown, reasons: [`needs Unity ${requirements.editor} (project ${facts.editorVersion})`] };
+        return {
+          applicable: false,
+          unknown,
+          reasons: [`needs Unity ${requirements.editor} (project ${facts.editorVersion})`],
+        };
       }
       if (verdict === undefined) {
         unknown = true;
@@ -213,7 +221,11 @@ export function evaluateRequirements(requirements: SkillRequirements, facts: Req
     }
     const verdict = satisfiesRange(requirement.range, installed);
     if (verdict === false) {
-      return { applicable: false, unknown, reasons: [`needs ${requirement.name} ${requirement.range} (project ${installed})`] };
+      return {
+        applicable: false,
+        unknown,
+        reasons: [`needs ${requirement.name} ${requirement.range} (project ${installed})`],
+      };
     }
     if (verdict === undefined) {
       unknown = true;

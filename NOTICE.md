@@ -3,11 +3,11 @@
 `@aqian0/dsh-unity` is a DeepSeek Harness bundle. It bundles components under
 three licenses, and the license of each part is determined by its path.
 
-| Path | Component | Copyright | License |
-| --- | --- | --- | --- |
-| `src/`, `lib/`, `test/`, `scripts/`, `cordis.patch.yml`, `locale/`, `README.md`, `docs/` | The bundle: the DSH skill provider, its configuration, tests, tooling, and documentation | © 2026 AQian | MIT — see [LICENSE.md](./LICENSE.md) |
-| `icon.svg` | The bundle icon: the Lucide `gamepad-2` glyph, scaled, recolored, and placed on a tile | © 2026 Lucide Icons and Contributors | ISC — see [Bundle icon](#bundle-icon) |
-| `skills/**` | The 34 Unity skills: Markdown guidance, reference documents, and C# sample scripts | © 2026 Unity Technologies | Unity Companion License — see [LICENSE-UNITY-COMPANION.md](./LICENSE-UNITY-COMPANION.md) |
+| Path                                                                                     | Component                                                                                | Copyright                            | License                                                                                  |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `src/`, `lib/`, `test/`, `scripts/`, `cordis.patch.yml`, `locale/`, `README.md`, `docs/` | The bundle: the DSH skill provider, its configuration, tests, tooling, and documentation | © 2026 AQian                         | MIT — see [LICENSE.md](./LICENSE.md)                                                     |
+| `icon.svg`                                                                               | The bundle icon: the Lucide `gamepad-2` glyph, scaled, recolored, and placed on a tile   | © 2026 Lucide Icons and Contributors | ISC — see [Bundle icon](#bundle-icon)                                                    |
+| `skills/**`                                                                              | The 34 Unity skills: Markdown guidance, reference documents, and C# sample scripts       | © 2026 Unity Technologies            | Unity Companion License — see [LICENSE-UNITY-COMPANION.md](./LICENSE-UNITY-COMPANION.md) |
 
 ## Unity Technologies notice
 

@@ -229,5 +229,11 @@ export function factsKey(facts: ProjectFacts | undefined): string {
           .sort(([left], [right]) => left.localeCompare(right))
           .map(([id, version]) => `${id}@${version}`)
           .join(',');
-  return [facts.root, facts.editorVersion ?? '?', facts.renderPipeline ?? '?', facts.editorOpen ? 'open' : 'closed', packages].join('|');
+  return [
+    facts.root,
+    facts.editorVersion ?? '?',
+    facts.renderPipeline ?? '?',
+    facts.editorOpen ? 'open' : 'closed',
+    packages,
+  ].join('|');
 }

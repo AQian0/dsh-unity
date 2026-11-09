@@ -37,7 +37,10 @@ test('the packaged catalog exposes every skill bundle', async () => {
     .map((entry) => entry.name)
     .sort();
   assert.equal(candidates.length, folders.length);
-  assert.deepEqual(candidates.map((candidate) => candidate.name), folders);
+  assert.deepEqual(
+    candidates.map((candidate) => candidate.name),
+    folders,
+  );
   assert.deepEqual(warnings, []);
 });
 

@@ -169,7 +169,9 @@ export function resolveSettings(config: PluginConfig): ResolvedSettings {
     throw new TypeError('unity-skills: providerName must be a non-empty string');
   }
   if (providerName === RESERVED_PROVIDER) {
-    throw new TypeError(`unity-skills: providerName "${RESERVED_PROVIDER}" is reserved for runtime skill registrations`);
+    throw new TypeError(
+      `unity-skills: providerName "${RESERVED_PROVIDER}" is reserved for runtime skill registrations`,
+    );
   }
   const rank = config.rank ?? DEFAULT_RANK;
   if (typeof rank !== 'number' || !Number.isFinite(rank)) {

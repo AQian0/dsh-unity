@@ -120,13 +120,13 @@ target: /path/to/dsh-unity
 
 技能目录里只放名称和描述；模型判断当前请求需要某个技能时，才用 `skill` 工具加载它的正文，正文里引用的 `references/`、`scripts/`、`resources/` 中的文件再按需读取。
 
-| 你说 | 会用到的技能 |
-| --- | --- |
-| "像素画在摄像机移动时又糊又抖" | `2d-pixel-perfect` |
-| "做一个设置界面" | `ui` → `ui-uitk` / `ui-ugui` |
-| "加内购，并用 LevelPlay 接激励视频广告" | `implement-in-app-purchases`、`levelplay-unity-integration` |
-| "TextMeshPro 里中文显示成方框" | `optimize-text-mesh-pro`、`localize-unity-project` |
-| "帮我检查这个 ScriptableRendererFeature 的 Render Graph 问题" | `validate-urp-render-graph-renderer-feature` |
+| 你说                                                          | 会用到的技能                                                |
+| ------------------------------------------------------------- | ----------------------------------------------------------- |
+| "像素画在摄像机移动时又糊又抖"                                | `2d-pixel-perfect`                                          |
+| "做一个设置界面"                                              | `ui` → `ui-uitk` / `ui-ugui`                                |
+| "加内购，并用 LevelPlay 接激励视频广告"                       | `implement-in-app-purchases`、`levelplay-unity-integration` |
+| "TextMeshPro 里中文显示成方框"                                | `optimize-text-mesh-pro`、`localize-unity-project`          |
+| "帮我检查这个 ScriptableRendererFeature 的 Render Graph 问题" | `validate-urp-render-graph-renderer-feature`                |
 
 也可以直接点名技能，例如"用 `unity-cli` 看看当前 Editor 连的是哪个工程"。被门控隐藏的技能不会出现在模型的目录里，但仍然可以这样按名字加载：不在 Unity 工程里时目录默认只剩 3 个起步技能（`workspaceSkills`），其余技能都只能通过显式点名使用。
 
@@ -134,27 +134,27 @@ target: /path/to/dsh-unity
 
 所有键都可选，写在 profile 的 `cordis.patch.yml` 里覆盖 `unity-skills` 行：
 
-| 键 | 默认 | 说明 |
-| --- | --- | --- |
-| `providerName` | `unity` | 注册到 `ctx.skills` 的 provider 名，会标在技能候选上；不能为空，不能用保留名 `runtime` |
-| `rank` | `240` | 同一层内的排序值；层内同名技能由"最近的层胜出"决定，这个值只用来排在同层 runtime 注册（250）之前 |
-| `skillDir` | 包内 `skills/` | 技能目录；相对路径按进程 cwd 解析 |
-| `exclude` | `[]` | 不加载的技能名，按目录名匹配 |
-| `gateByProject` | `true` | 关掉后不再按工程筛选：不在 Unity 工程里也列出全部技能 |
-| `workspaceSkills` | `[new-unity-project, unity-cli, unity-package-management]` | 不在 Unity 工程时仍出现在模型目录里的技能 |
-| `enforceRequirements` | `true` | 关掉后不再执行 `required_editor_version` / `required_packages` |
-| `injectContext` | `true` | 关掉后不再注入 `unity:project` 上下文行 |
-| `watchSkills` | `true` | 关掉后不再监视 `skills/`，目录变更需要重启 |
-| `respectProjectRoots` | `true` | 关掉后不再让工程自己的 `.dsh/skills`、`.agents/skills` 接管同名技能 |
+| 键                    | 默认                                                       | 说明                                                                                             |
+| --------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `providerName`        | `unity`                                                    | 注册到 `ctx.skills` 的 provider 名，会标在技能候选上；不能为空，不能用保留名 `runtime`           |
+| `rank`                | `240`                                                      | 同一层内的排序值；层内同名技能由"最近的层胜出"决定，这个值只用来排在同层 runtime 注册（250）之前 |
+| `skillDir`            | 包内 `skills/`                                             | 技能目录；相对路径按进程 cwd 解析                                                                |
+| `exclude`             | `[]`                                                       | 不加载的技能名，按目录名匹配                                                                     |
+| `gateByProject`       | `true`                                                     | 关掉后不再按工程筛选：不在 Unity 工程里也列出全部技能                                            |
+| `workspaceSkills`     | `[new-unity-project, unity-cli, unity-package-management]` | 不在 Unity 工程时仍出现在模型目录里的技能                                                        |
+| `enforceRequirements` | `true`                                                     | 关掉后不再执行 `required_editor_version` / `required_packages`                                   |
+| `injectContext`       | `true`                                                     | 关掉后不再注入 `unity:project` 上下文行                                                          |
+| `watchSkills`         | `true`                                                     | 关掉后不再监视 `skills/`，目录变更需要重启                                                       |
+| `respectProjectRoots` | `true`                                                     | 关掉后不再让工程自己的 `.dsh/skills`、`.agents/skills` 接管同名技能                              |
 
 ```yaml
 # profile 的 cordis.patch.yml
 - id: unity-skills
   name: '@aqian0/dsh-unity'
   config:
-    exclude: [unity-pipeline]        # 不加载 unity-pipeline
-    workspaceSkills: [unity-cli]     # 非 Unity 工程里只留一个
-    gateByProject: false             # 不做工程筛选
+    exclude: [unity-pipeline] # 不加载 unity-pipeline
+    workspaceSkills: [unity-cli] # 非 Unity 工程里只留一个
+    gateByProject: false # 不做工程筛选
 ```
 
 覆盖行用 `id: unity-skills` 定位 bundle 补丁里的那一行。配置是手写校验的：`providerName` 为空或写成 `runtime`、`rank` 不是有限数字、`skillDir` 为空、`exclude`/`workspaceSkills` 不是非空字符串数组、上面任何一个开关不是布尔值，都会让这一行加载失败并报错，不会静默忽略。改完配置后需要重新组成该行：重启 DSH 一定生效，开启 HMR 的 profile 也可能即时重组。
@@ -165,12 +165,12 @@ target: /path/to/dsh-unity
 
 每个 agent 创建时，插件经 `agent.ctx` 把 provider 注册进**该 agent 自己的层**。DSH 的合并规则是"最近的层直接胜出，rank 只在同一层内比较"，所以：
 
-| 情况 | 结果 |
-| --- | --- |
+| 情况                                                     | 结果                                                    |
+| -------------------------------------------------------- | ------------------------------------------------------- |
 | 与工程自己的 `<工程>/.dsh/skills`、`.agents/skills` 同名 | 插件不提供该名字，工程那份生效（`respectProjectRoots`） |
-| 与 `~/.dsh/skills`、`~/.agents/skills` 等外部副本同名 | 插件在 agent 自己的层里，最近层胜出——插件赢 |
-| 与同层 runtime 注册（rank 250）同名 | 同层内按 rank：本插件 240 排在前面 |
-| 组合里根本没有安装插件（或它被禁用） | 这些技能不存在 |
+| 与 `~/.dsh/skills`、`~/.agents/skills` 等外部副本同名    | 插件在 agent 自己的层里，最近层胜出——插件赢             |
+| 与同层 runtime 注册（rank 250）同名                      | 同层内按 rank：本插件 240 排在前面                      |
+| 组合里根本没有安装插件（或它被禁用）                     | 这些技能不存在                                          |
 
 上表第二行不是特例，而是层规则的直接结果：插件把 provider 注册进 agent 自己的层，比任何全局层或外部根都近，"最近的层胜出"与 `rank` 无关，所以外部目录里的同名副本盖不掉插件的版本。
 
@@ -185,26 +185,26 @@ target: /path/to/dsh-unity
 
 这些事实按工作目录缓存 2 秒：缓存过期后的下一次查询会重新检测，如果工程事实变了（Editor 版本、包、工程根），就让目录缓存失效并重新门控。
 
-| 会话所在 | 模型的技能目录 |
-| --- | --- |
-| 不在 Unity 工程里 | 只有 `workspaceSkills`（默认 3 个：`new-unity-project`、`unity-cli`、`unity-package-management`） |
-| 在 Unity 工程里，技能要求都满足 | 该技能可见 |
-| 在 Unity 工程里，技能要求不满足 | 该技能离开模型目录，但仍可用 `/技能名` 载入 |
-| 工程自己提供了同名技能 | 插件不提供该名字 |
+| 会话所在                        | 模型的技能目录                                                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 不在 Unity 工程里               | 只有 `workspaceSkills`（默认 3 个：`new-unity-project`、`unity-cli`、`unity-package-management`） |
+| 在 Unity 工程里，技能要求都满足 | 该技能可见                                                                                        |
+| 在 Unity 工程里，技能要求不满足 | 该技能离开模型目录，但仍可用 `/技能名` 载入                                                       |
+| 工程自己提供了同名技能          | 插件不提供该名字                                                                                  |
 
 ### 需求表
 
 技能 frontmatter 里声明的需求会被实际执行（`enforceRequirements`）。当前有需求的技能：
 
-| 技能 | 要求 |
-| --- | --- |
-| `build-gtk` | Editor `>=6000.6` |
-| `fix-3d-physics-collisions` | Editor `>=6000.3` |
-| `asset-transformer-toolkit` | `com.unity.industry.toolkit >=4.0.0` |
+| 技能                                | 要求                                                                  |
+| ----------------------------------- | --------------------------------------------------------------------- |
+| `build-gtk`                         | Editor `>=6000.6`                                                     |
+| `fix-3d-physics-collisions`         | Editor `>=6000.3`                                                     |
+| `asset-transformer-toolkit`         | `com.unity.industry.toolkit >=4.0.0`                                  |
 | `create-tile-palette-or-rule-tiles` | `com.unity.2d.tilemap >=1.0.0`、`com.unity.2d.tilemap.extras >=4.0.0` |
-| `setup-vivox-voice-chat` | `com.unity.services.vivox >=16.4.0` |
-| `shader-graph-create-custom-node` | `com.unity.shadergraph >=17.5.0` |
-| `urp-postprocessing` | `com.unity.render-pipelines.universal >=14.0.0` |
+| `setup-vivox-voice-chat`            | `com.unity.services.vivox >=16.4.0`                                   |
+| `shader-graph-create-custom-node`   | `com.unity.shadergraph >=17.5.0`                                      |
+| `urp-postprocessing`                | `com.unity.render-pipelines.universal >=14.0.0`                       |
 
 版本范围支持 `>=`、`>`、`<=`、`<`、`=`、`^`、`~`，可以逗号或空格分隔，也可以写 `>= 6000.6`；两段版本（如 `6000.6`）表示那一条发布线，三段版本表示精确版本。**事实未知时不隐藏技能**：manifest 缺失、版本或范围解析不了时技能照常显示，也不会产生隐藏提示。
 

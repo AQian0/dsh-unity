@@ -82,9 +82,7 @@ test('requirements are read from the frontmatter shapes Unity uses', () => {
 test('evaluateRequirements hides on a real mismatch and stays open on unknown', () => {
   const facts: { editorVersion?: string; packages?: Map<string, string> } = {
     editorVersion: '6000.3.14f1',
-    packages: new Map([
-      ['com.unity.render-pipelines.universal', '14.0.11'],
-    ]),
+    packages: new Map([['com.unity.render-pipelines.universal', '14.0.11']]),
   };
 
   const unmetEditor = evaluateRequirements({ editor: '>=6000.6', packages: [] } satisfies SkillRequirements, facts);

@@ -15,7 +15,7 @@ test('plain, quoted, and core-schema scalars', () => {
     [
       'name: unity-cli',
       'quoted: "Value with: a colon and \\"quotes\\""',
-      'single: \'it\'\'s fine\'',
+      "single: 'it''s fine'",
       'version: 0.3.0',
       'range: ">=6000.6"',
       'enabled: true',
@@ -42,7 +42,9 @@ test('plain, quoted, and core-schema scalars', () => {
 });
 
 test('block scalars fold, clip, and strip', () => {
-  const folded = parseYamlSubset(['description: >-', '  Builds graph tools on 6.6+,', '  state machines on 6.7+.'].join('\n'));
+  const folded = parseYamlSubset(
+    ['description: >-', '  Builds graph tools on 6.6+,', '  state machines on 6.7+.'].join('\n'),
+  );
   assert.deepEqual(folded, { description: 'Builds graph tools on 6.6+, state machines on 6.7+.' });
 
   const clipped = parseYamlSubset(['description: >', '  First line', '  second line'].join('\n'));
@@ -101,7 +103,10 @@ test('skill names use the registry grammar', () => {
 
 test('invocation policy maps the harness keys and rejects invalid spellings', () => {
   assert.deepEqual(parseInvocation({ name: 'ui', description: 'x' }), { modelInvocable: true, userInvocable: true });
-  assert.deepEqual(parseInvocation({ 'disable-model-invocation': 'yes' }), { modelInvocable: false, userInvocable: true });
+  assert.deepEqual(parseInvocation({ 'disable-model-invocation': 'yes' }), {
+    modelInvocable: false,
+    userInvocable: true,
+  });
   assert.deepEqual(parseInvocation({ 'user-invocable': '0' }), { modelInvocable: true, userInvocable: false });
   assert.deepEqual(parseInvocation({ 'user-invocable': 'Off' }), { modelInvocable: true, userInvocable: false });
   assert.throws(() => parseInvocation({ disableModelInvocation: true }), /use "disable-model-invocation"/);

@@ -15,9 +15,11 @@ import {
 } from '../src/project.ts';
 
 /** Create a temporary Unity project and return its root. */
-async function createProject(
-  { version = '6000.3.14f1', packages, lock = false }: { version?: string; packages?: Record<string, string> | null; lock?: boolean } = {},
-) {
+async function createProject({
+  version = '6000.3.14f1',
+  packages,
+  lock = false,
+}: { version?: string; packages?: Record<string, string> | null; lock?: boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'dsh-unity-project-'));
   await mkdir(join(root, 'ProjectSettings'), { recursive: true });
   await writeFile(
