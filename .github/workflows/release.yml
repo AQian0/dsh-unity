@@ -1,9 +1,15 @@
 name: release
 
 # 推 v<version> tag 触发（也可用 workflow_dispatch 传已有 tag 重跑）：
-# 校验 tag 与 package.json 版本一致、tag 提交在 main 上 → 类型检查 / 单元测试 /
-# 技能校验 → 构建 lib/ → 校验 npm pack 内容 → 用 npm 可信发布（GitHub OIDC，
-# 无需 NPM_TOKEN）发布 → 创建 GitHub Release（已存在则跳过）。
+# 校验 tag 与 package.json 版本一致、tag 提交在 main 上 → 门禁 `pnpm test`
+# （vp check 的 Oxfmt + Oxlint → tsc 类型检查 → node --test）与
+# `pnpm run validate`（34 个技能的内容合规）→ 显式 `pnpm run build` →
+# 校验 `pnpm pack` 的内容清单 → 用 npm 可信发布（GitHub OIDC，无需 NPM_TOKEN）
+# 发布 → 创建 GitHub Release（已存在则跳过）。
+#
+# pnpm 只负责本地工具链：vite-plus（vp）与 tsc 都在 devDependencies 里，
+# pnpm-lock.yaml 入库保证可复现安装。发布本身仍走 npm 的 trusted publishing
+# （OIDC），npm 只出现在发布链路（npm view / npm publish）。
 #
 # 首次发布与 trusted publisher 配置：
 # - npm 的 trusted publishing 需要先在 npmjs.com 的包设置里为 @aqian0/dsh-unity
@@ -47,15 +53,21 @@ jobs:
           ref: ${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
 
+      - name: Set up pnpm
+        # 不传 version：由 action 安装 package.json 里 packageManager 固定的
+        # 精确 pnpm 版本（pnpm@12.16.1）。
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4 (v4.4.0)
+
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6 (v6.5.0)
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        # 可复现安装：使用入库的 pnpm-lock.yaml（发布必须基于确定的依赖树）。
+        run: pnpm install --frozen-lockfile
 
       - name: Verify tag and package metadata
         run: |
@@ -79,27 +91,29 @@ jobs:
           fi
           echo "${RELEASE_TAG} is on main"
 
-      - name: Run the documented pre-release gate
-        # 与 ci.yml 相同：tsc 类型检查 + node --test + 技能校验。
-        run: |
-          npm run typecheck
-          npm test
-          npm run validate
+      - name: Run the documented test gate
+        # 与 ci.yml 相同：`pnpm test` = vp check（Oxfmt + Oxlint，warning 视为
+        # 失败）+ tsc -p tsconfig.test.json + node --test。
+        run: pnpm test
+
+      - name: Validate the bundled skills
+        # 34 个技能的结构、frontmatter、需求字段、正文体积与资源引用。
+        run: pnpm run validate
 
       - name: Build the published output
-        # lib/ 不入库；prepack 也会构建，但这里显式构建一次，让下面的 pack
-        # 校验与最终发布看到同一份确定的产物。
-        run: npm run build
+        # lib/ 不入库；prepack（clean + build）也会构建，但这里显式构建一次，
+        # 让下面的 pack 校验与最终发布看到同一份确定的产物。
+        run: pnpm run build
 
       - name: Validate the publishable tarball
         # 用 --ignore-scripts 防止再次触发 prepack；缺 lib/types、许可证文件或
         # 技能内容的包对该版本不可挽回，所以显式断言内容而不是只信 files 字段。
         run: |
-          npm pack --dry-run --ignore-scripts --json > "${RUNNER_TEMP}/pack.json"
+          pnpm pack --dry-run --ignore-scripts --json > "${RUNNER_TEMP}/pack.json"
           node - <<'NODE'
           const fs = require('node:fs');
           const parsed = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/pack.json`, 'utf8'));
-          // `npm pack --json` 输出数组；兼容对象形式。
+          // `pnpm pack --json` 输出单个对象；兼容数组形式。
           const manifest = Array.isArray(parsed) ? parsed[0] : parsed;
           const packaged = new Set(manifest.files.map((entry) => entry.path));
           const required = [

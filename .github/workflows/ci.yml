@@ -2,10 +2,16 @@ name: ci
 
 # Push/PR 质量门禁，跑的就是 README「开发与验证」里的命令。
 #
-# 本仓库是 npm 项目（package-lock.json 入库），没有 lint/format 工具链：
-# 门禁由类型检查、单元测试、技能校验与发布 tarball 冒烟检查组成。测试与
-# 校验脚本直接运行 TypeScript（Node 内置类型剥离），所以矩阵覆盖 engines
-# 下限 22.18 与推荐的 24 LTS，两个版本上结论应当一致。
+# 本仓库是 pnpm 项目：packageManager 固定 pnpm@12.16.1，pnpm-lock.yaml 入库，
+# 静态工具链（vite-plus 提供的 vp / Oxfmt / Oxlint，以及 tsc）都在
+# devDependencies 里，由 pnpm 精确安装。门禁 `pnpm test` 分三步：
+# `vp check --deny-warnings`（Oxfmt + Oxlint）→ `tsc -p tsconfig.test.json` →
+# `node --test`；`vp fmt` / `vp lint` 忽略 skills/**（Unity 内容按原样发布，
+# 格式化器不改写它）。技能校验 `pnpm run validate` 单独跑：它是内容合规检查，
+# 与代码门禁的失败原因不同，分开更便于定位。测试与校验脚本直接运行
+# TypeScript（Node 内置类型剥离），所以矩阵覆盖 vite-plus engines
+# （^22.18.0 || ^24.11.0 || >=26.0.0）里的下限 22.18 与推荐的 24 LTS，
+# 两个版本上结论应当一致。
 
 on:
   push:
@@ -36,36 +42,42 @@ jobs:
         # Action 固定到提交 SHA（与 dsh-jj 相同版本）；升级时同步注释。
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6 (v6.1.0)
 
+      - name: Set up pnpm
+        # 不传 version：由 action 安装 package.json 里 packageManager 固定的
+        # 精确 pnpm 版本（pnpm@12.16.1）。
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4 (v4.4.0)
+
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6 (v6.5.0)
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        # 可复现安装：直接使用入库的 package-lock.json。
-        run: npm ci
+        # 可复现安装：使用入库的 pnpm-lock.yaml，lockfile 与 package.json
+        # 不一致时 --frozen-lockfile 直接失败。
+        run: pnpm install --frozen-lockfile
 
-      - name: Type-check sources, tests and scripts
-        run: npm run typecheck
-
-      - name: Run the unit tests
-        run: npm test
+      - name: Run the documented test gate
+        # `pnpm test` = `vp check --deny-warnings`（Oxfmt + Oxlint，warning 视为
+        # 失败）+ `tsc -p tsconfig.test.json` 类型检查 + `node --test` 单元测试
+        # （测试直接运行 TypeScript，依赖 Node 内置类型剥离）。
+        run: pnpm test
 
       - name: Validate the bundled skills
         # 34 个技能的结构、frontmatter、需求字段、正文体积与资源引用。
-        run: npm run validate
+        run: pnpm run validate
 
       - name: Build and smoke-check the publishable tarball
         # release.yml 会断言完整清单；这里只抓 `files` 配错与构建失败，
-        # --ignore-scripts 防止 prepack 再构建一次（上面刚构建过）。
+        # --ignore-scripts 防止 prepack（clean + build）再跑一次——上面刚构建过。
         run: |
-          npm run build
-          npm pack --dry-run --ignore-scripts --json > "${RUNNER_TEMP}/pack.json"
+          pnpm run build
+          pnpm pack --dry-run --ignore-scripts --json > "${RUNNER_TEMP}/pack.json"
           node - <<'NODE'
           const fs = require('node:fs');
           const parsed = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/pack.json`, 'utf8'));
-          // `npm pack --json` 输出数组；兼容对象形式。
+          // `pnpm pack --json` 输出单个对象；兼容数组形式。
           const manifest = Array.isArray(parsed) ? parsed[0] : parsed;
           const packaged = new Set(manifest.files.map((entry) => entry.path));
           const required = [
