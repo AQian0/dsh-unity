@@ -1,10 +1,28 @@
+# Dependencies (pnpm manages them: `pnpm install` writes node_modules/ and the
+# committed pnpm-lock.yaml; other package managers' lockfiles must not creep in).
 node_modules/
+package-lock.json
+yarn.lock
+.npmrc
+
+# Build output: `pnpm run build` (and `prepack`) produces lib/ from src/.
+# DSH does not build a directory install, so build once before installing.
 lib/
+*.tsbuildinfo
 
 # Local validator output; the published package never contains audit reports.
 reports/
-*.tsbuildinfo
+
+# Packaging artifacts; pnpm-lock.yaml is the one lockfile that IS committed.
+*.tgz
 
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Editor / tooling scratch
+*.log
+*.swp
+*.swo
+*~
+editor-*.jjdescription

@@ -4,31 +4,19 @@
   "description": "Unity game-development, monetization, and performance skills for DeepSeek Harness: 34 skills that load on demand, packaged as a DSH bundle.",
   "keywords": [
     "dsh-plugin",
-    "unity",
+    "game-development",
     "gamedev",
-    "game-development"
+    "unity"
   ],
+  "homepage": "https://github.com/AQian0/dsh-unity#readme",
+  "bugs": {
+    "url": "https://github.com/AQian0/dsh-unity/issues"
+  },
   "license": "(MIT AND ISC AND LicenseRef-Unity-Companion-License)",
   "author": "AQian",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AQian0/dsh-unity.git"
-  },
-  "homepage": "https://github.com/AQian0/dsh-unity#readme",
-  "bugs": {
-    "url": "https://github.com/AQian0/dsh-unity/issues"
-  },
-  "type": "module",
-  "main": "lib/index.js",
-  "exports": {
-    ".": {
-      "types": "./lib/types/index.d.ts",
-      "default": "./lib/index.js"
-    },
-    "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg",
-    "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
   },
   "files": [
     "lib/**/*.js",
@@ -44,29 +32,51 @@
     "README.md",
     "docs/design.md"
   ],
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\"",
-    "prepack": "npm run clean && npm run build",
-    "prepublishOnly": "npm run typecheck && npm test && npm run validate",
+    "prepack": "pnpm run clean && pnpm run build",
+    "prepublishOnly": "pnpm test && pnpm run validate",
+    "format": "vp fmt",
+    "format:check": "vp fmt --check",
+    "lint": "vp lint",
+    "lint:fix": "vp lint --fix",
+    "check": "vp check --deny-warnings",
+    "check:fix": "vp check --fix",
     "typecheck": "tsc -p tsconfig.test.json",
-    "test": "node --test \"test/**/*.test.ts\"",
+    "test:unit": "node --test \"test/**/*.test.ts\"",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='src/**/*.ts' --test-coverage-exclude='lib/**' \"test/**/*.test.ts\"",
+    "test": "pnpm run check && pnpm run typecheck && pnpm run test:unit",
     "validate": "node scripts/validate-skills.ts"
   },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "typescript": "7.0.2",
+    "vite-plus": "1.5.0"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "packageManager": "pnpm@12.16.1",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
     }
-  },
-  "devDependencies": {
-    "@types/node": "^26.6.5",
-    "typescript": "^7.0.2"
-  },
-  "types": "lib/types/index.d.ts",
-  "engines": {
-    "node": ">=22.18"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }
