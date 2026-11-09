@@ -25,6 +25,7 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { SKILL_NAME, parseSkillMarkdown, splitFrontmatter } from '../lib/frontmatter.js';
+import { readRequirements, satisfiesRange } from '../lib/requirements.js';
 import { createUnitySkillReader } from '../lib/skills.js';
 
 /** Repository root, derived from this script so the validator works from any cwd. */
@@ -38,6 +39,9 @@ const STANDARD_KEYS = new Set([
   'disable-model-invocation',
   'user-invocable',
 ]);
+
+/** Warn when one SKILL.md exceeds this many bytes (the pruner trims above 8192 chars). */
+const BODY_SIZE_WARN_BYTES = 16384;
 
 /** Directory prefixes that make a reference unambiguously skill-relative. */
 const RESOURCE_PREFIX = /^(?:references|scripts|assets|examples|resources)\//;
@@ -188,6 +192,7 @@ async function main() {
       description: '',
       descriptionLength: 0,
       extras: [],
+      bodyBytes: 0,
       file,
     };
     rows.push(row);
@@ -245,6 +250,30 @@ async function main() {
     }
 
     row.extras = Object.keys(data).filter((key) => !STANDARD_KEYS.has(key)).sort();
+
+    // Body size matters: a loaded skill body is a tool result, and an oversized one
+    // gets trimmed head/tail once a compaction trigger qualifies.
+    row.bodyBytes = Buffer.byteLength(raw, 'utf8');
+    if (row.bodyBytes > BODY_SIZE_WARN_BYTES) {
+      warn(file, 'size', `SKILL.md is ${row.bodyBytes} bytes; bodies above ${BODY_SIZE_WARN_BYTES} get trimmed once compaction runs`);
+    }
+
+    // Requirement declarations drive project-aware gating, so they must be readable.
+    const requirements = readRequirements(data);
+    if (requirements.editor !== undefined && satisfiesRange(requirements.editor, '6000.0.0f1') === undefined) {
+      warn(file, 'requirements', `required_editor_version "${requirements.editor}" cannot be parsed as a range`);
+    }
+    for (const requirement of requirements.packages) {
+      if (requirement.range !== '' && satisfiesRange(requirement.range, '1.0.0') === undefined) {
+        warn(file, 'requirements', `required_packages "${requirement.name}" range "${requirement.range}" cannot be parsed`);
+      }
+    }
+    if (requirements.editor !== undefined || requirements.packages.length > 0) {
+      row.requirements = [
+        ...(requirements.editor === undefined ? [] : [`unity ${requirements.editor}`]),
+        ...requirements.packages.map((entry) => `${entry.name} ${entry.range}`.trim()),
+      ];
+    }
 
     // Resource references are warnings: several are optional by design.
     const split = splitFrontmatter(raw);
@@ -390,6 +419,7 @@ async function main() {
       providerList: countFailures('provider.list'),
       providerLoad: countFailures('provider.load'),
     },
+    largestBody: rows.reduce((largest, row) => Math.max(largest, row.bodyBytes ?? 0), 0),
     extrasKeys: [...extras.keys()].sort(),
     extrasSkills: rows.filter((row) => row.extras.length > 0).length,
     failuresList: failures,
@@ -506,6 +536,7 @@ function renderConsole(summary) {
   lines.push(`  skills:              ${summary.passed}/${summary.skills} passed, ${summary.failedSkills} failed`);
   lines.push(`  provider:            ${summary.candidates} candidates listed, ${summary.loaded} loaded`);
   lines.push(`  references:          ${summary.referencesResolved}/${summary.references} resolved`);
+  lines.push(`  largest SKILL.md:    ${summary.largestBody} bytes`);
   lines.push(
     `  frontmatter extras:  ${summary.extrasKeys.length} keys across ${summary.extrasSkills} skills (informational)`,
   );
