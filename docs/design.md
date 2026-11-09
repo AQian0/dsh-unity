@@ -18,18 +18,21 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `index.js` | 行入口：校验配置、共享解析缓存、创建 agent registry、监听 `agent/created`/`agent/disposed`、启动 watcher、在 fiber 释放时统一注销 |
-| `lib/registry.js` | 每个 agent 一份注册；事实与项目覆盖的缓存；provider 实现；全局回退 provider |
-| `lib/project.js` | 工程检测（向上找 marker、Editor 版本、manifest、Editor 锁、`unity` CLI）、工程自有技能名、`factsKey` |
-| `lib/gating.js` | 可见性决策（工作区技能、需求、项目覆盖）、候选改写、运行时上下文渲染 |
-| `lib/requirements.js` | 版本与包的解析、比较，需求的读取与求值 |
-| `lib/watch.js` | `skills/` 的 `fs.watch`，200ms 防抖，只在 `SKILL.md` 变化时触发 |
-| `lib/skills.js` | 技能发现与加载，外加按 (path, mtime, size) 命中的共享解析缓存 |
-| `lib/frontmatter.js` | 自包含的 YAML 子集读取器与 invocation 解析 |
+| `src/index.ts` | 行入口：校验配置、共享解析缓存、创建 agent registry、监听 `agent/created`/`agent/disposed`、启动 watcher、在 fiber 释放时统一注销 |
+| `src/registry.ts` | 每个 agent 一份注册；事实与项目覆盖的缓存；provider 实现；全局回退 provider |
+| `src/project.ts` | 工程检测（向上找 marker、Editor 版本、manifest、Editor 锁、`unity` CLI）、工程自有技能名、`factsKey` |
+| `src/gating.ts` | 可见性决策（工作区技能、需求、项目覆盖）、候选改写、运行时上下文渲染 |
+| `src/requirements.ts` | 版本与包的解析、比较，需求的读取与求值 |
+| `src/watch.ts` | `skills/` 的 `fs.watch`，200ms 防抖，只在 `SKILL.md` 变化时触发 |
+| `src/skills.ts` | 技能发现与加载，外加按 (path, mtime, size) 命中的共享解析缓存 |
+| `src/frontmatter.ts` | 自包含的 YAML 子集读取器与 invocation 解析 |
+| `src/harness.ts` | 本包用到的 harness 契约的结构化声明（provider、prompt context、agent scope、可选服务），使构建不需要依赖 `@deepseek-ai/*` |
 | `cordis.patch.yml` | 只插入一个 Host 行 `unity-skills`（`config: {}`） |
 | `skills/` | 34 个技能目录，每个是 `<name>/SKILL.md` + 可选的 `references/`、`scripts/`、`resources/` |
 
-此外，`locale/en.json` / `locale/zh.json` 与 `icon.svg` 提供插件页的标题、描述与图标，`LICENSE.md` 随包发布；`scripts/validate-skills.mjs` 与 `test/*.js` 是开发期工具（见 7.3 与第 9 节）。
+**构建形态**与官方插件包一致：仓库里是 `src/` 下的 TypeScript，`npm run build`（`tsc -p tsconfig.json`）产出 `lib/*.js` 与 `lib/types/*.d.ts`，`prepack` 会再跑一次构建，因此 `npm pack` 出来的 tarball 只有编译产物、`cordis.patch.yml`、`locale/`、`skills/` 与图标。`lib/` 被 `.gitignore` 忽略，不随仓库提交；按目录安装前需要先构建。`tsconfig.test.json` 只做类型检查（`src/`、`test/`、`scripts/`），测试与脚本由 Node 内置的类型剥离直接运行 `.ts`。
+
+此外，`locale/en.json` / `locale/zh.json` 与 `icon.svg` 提供插件页的标题、描述与图标，`LICENSE.md` 随包发布；`scripts/validate-skills.ts` 与 `test/*.test.ts` 是开发期工具（见 7.3 与第 9 节）。
 
 ## 3. 为什么用 provider，为什么必须按 agent 注册
 
@@ -267,8 +270,10 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 本轮实测（2026-11-09）：
 
-- `npm test`：**53/53 通过**（`node --test test/*.test.js`），覆盖 frontmatter 解析、需求解析与求值、工程检测、门控、per-agent 注册与生命周期、watcher 注销、catalog 装配。
-- `npm run validate`：**PASS**，34/34 技能通过、34 个候选全部 `list()` 且 `load()` 成功、155/155 技能内资源引用在磁盘上解析到、0 failures；13 条 `size` 警告（`SKILL.md` 超过 16384 字节，最大 `unity-cli` 的 71562 字节）。
+- `npm test`：**53/53 通过**（`node --test "test/**/*.test.ts"`，直接运行 TypeScript），覆盖 frontmatter 解析、需求解析与求值、工程检测、门控、per-agent 注册与生命周期、watcher 注销、catalog 装配。
+- `npm run typecheck`：`tsc -p tsconfig.test.json` 对 `src/`、`test/`、`scripts/` 零错误（`strict` + `erasableSyntaxOnly`）。
+- `npm run build`：`src/` → `lib/*.js` + `lib/types/*.d.ts`；构建产物加载后 provider 正常 `list()` 出 34 个候选。
+- `npm run validate`：**PASS**，34/34 技能通过、34 个候选全部 `list()` 且 `load()` 成功、228/228 技能内资源引用在磁盘上解析到、0 failures、0 warnings；最大 `SKILL.md` 11969 字节。
 - 安装进 desktop profile：`plugin_manager install_bundle` 返回 `application: applied`。
 - 非 Unity 工作目录：会话技能目录里恰好 3 个技能（`new-unity-project`、`unity-cli`、`unity-package-management`）。
 - 切换到 fixture 工程（Editor `6000.3.14f1`，manifest 含 URP 与 uGUI）：其余技能出现，并恰好隐藏 `asset-transformer-toolkit`、`build-gtk`、`create-tile-palette-or-rule-tiles`、`setup-vivox-voice-chat`、`shader-graph-create-custom-node`；提示词里带着 `Unity project: …` 与这些技能的原因。`fix-3d-physics-collisions`（需要 `>=6000.3`）与 `urp-postprocessing`（需要 URP）保持可见，因为工程满足它们。
@@ -277,7 +282,7 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 ## 10. 已知缺口
 
-- **过大的技能正文**：13 个 `SKILL.md` 超过 16384 字节（最大 71562）。载入的正文是工具结果，压缩在超过 8192 字符时会裁剪，所以这些正文有被截断的风险；目前只有 `size` 警告，运行时行为没有为此改变，正文需要重整。
+- **正文体积靠约定与告警维持**：载入的 `SKILL.md` 是工具结果，压缩在超过 8192 字符时会裁剪，所以技能采用“`SKILL.md` 只做路由 + 细节放 `references/`”的结构。当前 34 个全部 ≤ 12 KB（最大 11969 字节），校验脚本在超过 16384 字节时告警；新增技能若把细节写回 `SKILL.md`，长会话里会被裁断。
 - **watcher 的边界**：只关心 `SKILL.md` 的增删改；`fs.watch` 在部分平台/沙箱不可用或会停止，此时只能退回重启时发现（各记录一条警告）。防抖窗口 200ms，突发写入会被合并。
 - **回退路径更弱**：`agent.ctx` 够不到 `skills` 时只有一份全局 provider：没有 `unity:project` 上下文，同名的预设层技能重新胜出。
 - **非 Unity 会话只有 3 个技能**：这是默认的 `workspaceSkills`；需要更多就显式点名或用配置调整。

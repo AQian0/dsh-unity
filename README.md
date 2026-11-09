@@ -78,7 +78,14 @@
 
 ## 安装
 
-**前置**：一个可用的 DSH profile（Web / Desktop / CLI 均可）。本包没有第三方运行时依赖，不需要 `pnpm install`，也没有构建步骤。
+**前置**：一个可用的 DSH profile（Web / Desktop / CLI 均可），以及 Node.js 24+ 与 npm。源码是 TypeScript，包入口是编译后的 `lib/index.js`（与官方插件包的发布形态一致：仓库里是 `src/`，`npm pack` 时才编译出 `lib/`），所以**按目录安装前要先构建一次**：
+
+```bash
+npm install        # 只有 typescript 与 @types/node 两个开发依赖
+npm run build      # src/ → lib/*.js + lib/types/*.d.ts（不入库）
+```
+
+运行时不依赖任何第三方包；构建产物也不需要额外安装。
 
 **Web GUI**：打开左侧栏的「插件 / Plugins」页，安装时 spec 填本仓库的绝对路径：
 
@@ -104,7 +111,7 @@ target: /Users/aqian/dsh-unity
 - 安装记录的是这个目录本身（本地目录依赖），不是把技能再复制一份；插件直接读这个 checkout 下的 `skills/`，所以编辑 `skills/` 之后不需要重装。
 - **技能正文的改动下次加载即生效**：每次加载都会重读文件。
 - **新增或删除技能目录、修改 frontmatter**：`skills/` 被监视，变更会清空解析缓存并让目录缓存失效，下一个会话步骤就能看到，不用重启。watcher 起不来时退回到"重启后生效"。
-- **改 `index.js` / `lib/` 里的代码**，或**替换已安装的包**（升级、换一个 checkout）后，需要重启 DSH。
+- **改 `src/` 里的代码**后要重新 `npm run build` 再重启 DSH；**替换已安装的包**（升级、换一个 checkout）同理。
 - 插件装在 profile 上：安装与启停会把技能提供给该 profile 的**所有会话**（可见范围仍由各自的工程决定）。
 
 ## 使用
@@ -211,17 +218,20 @@ Unity project: /path/to/project (Editor 6000.3.14f1, URP, Editor open, unity CLI
 
 本机实测：非 Unity 目录下模型目录恰好 3 个技能；切到一个 fixture 工程（Editor `6000.3.14f1`，manifest 里有 URP 和 uGUI）后，其余技能出现，且正好隐藏 `asset-transformer-toolkit`、`build-gtk`、`create-tile-palette-or-rule-tiles`、`setup-vivox-voice-chat`、`shader-graph-create-custom-node`——`asset-transformer-toolkit` 需要的 `com.unity.industry.toolkit` 没装、`build-gtk` 要求 Editor `>=6000.6`，另外三个需要的包也不在 manifest 里；上下文行同时给出了同样的原因。
 
-## 验证
+## 开发与验证
 
 ```bash
-npm test                  # 单元测试：53 个用例（node --test test/*.test.js）
-npm run validate          # 技能审计：34/34 技能、155/155 资源引用、0 失败
+npm install               # 安装 typescript 与 @types/node
+npm run build             # 编译 src/ → lib/（发布产物，不入库）
+npm run typecheck         # 用 tsconfig.test.json 检查 src/、test/、scripts/
+npm test                  # 单元测试：53 个用例，直接跑 TypeScript（Node 内置类型剥离）
+npm run validate          # 技能合规性：结构、frontmatter、需求字段、正文体积、资源引用
 ```
 
-`npm run validate` 检查的是：技能目录里有 `SKILL.md`、frontmatter 能解析、名称是 kebab-case 且与目录一致、描述非空且不含 `<`/`>`、名称唯一、正文非空、provider 能 `list()` 与 `load()` 出全部技能、以及正文里技能相对路径的资源引用在磁盘上存在。失败退出码 1；警告不影响退出码。目前有 13 条 `size` 警告（`SKILL.md` 超过 16384 字节，最大的是 `unity-cli` 的 71562 字节），属于已知缺口，见下节。
+`npm run validate` 检查的是：技能目录里有 `SKILL.md`、frontmatter 能解析、名称是 kebab-case 且与目录一致、描述非空且不含 `<`/`>`、名称唯一、正文非空、`required_*` 需求字段能解析、`SKILL.md` 不超过 16384 字节（超过即告警，见下节）、provider 能 `list()` 与 `load()` 出全部技能、以及正文里技能相对路径的资源引用在磁盘上存在。失败退出码 1；警告不影响退出码。当前是 34/34 技能、228/228 资源引用、0 失败 0 告警，最大的 `SKILL.md` 为 11969 字节。
 
 ```bash
-node scripts/validate-skills.mjs --report reports/skill-audit.md   # 另外写一份 Markdown 报告
+node scripts/validate-skills.ts --report reports/skill-audit.md   # 另外写一份 Markdown 报告
 ```
 
 安装后也可以直接看：
@@ -233,7 +243,7 @@ node scripts/validate-skills.mjs --report reports/skill-audit.md   # 另外写�
 
 ## 已知限制
 
-- **过大的技能正文待重整**：13 个 `SKILL.md` 超过 16384 字节，最大 71562 字节（`unity-cli`）。载入的正文是工具结果，压缩（compaction）在超过 8192 字符时会裁剪，所以这些技能的正文有被截断的风险；目前只是校验脚本给出 `size` 警告，运行时行为没有为此改变。
+- **正文体积有硬约束**：载入的 `SKILL.md` 是工具结果，压缩（compaction）在超过 8192 字符时会裁剪，所以 `SKILL.md` 只做路由——判断、步骤、指向 `references/` 的链接；细节都放在 `references/` 里按需读取。当前 34 个 `SKILL.md` 全部 ≤ 12 KB（最大 11969 字节），校验脚本在超过 16384 字节时告警。新增或改写技能时请沿用这个结构，否则该技能在长会话里会被裁断。
 - **文件监视有边界**：watcher 只关心 `SKILL.md` 的变化（新增、删除、改名、编辑），并按 200ms 防抖合并突发写入；`references/` 等资源文件靠加载时读取，不需要刷新。平台或沙箱不允许监视时，会记录一条警告并退回"重启后生效"。
 - **回退到全局 provider 时会退步**：如果某个 profile 里 `agent.ctx` 够不到 `skills`（或没有 `agents` 服务），插件只注册一份全局 provider，并记录一条警告。这条路径仍按每次查询的 `cwd` 做工程门控，但没有 `unity:project` 上下文，且同名的预设层技能会重新胜出。
 - **非 Unity 会话只提供 3 个技能**：默认 `workspaceSkills` 是 `new-unity-project`、`unity-cli`、`unity-package-management`；需要别的技能就显式点名，或用 `workspaceSkills` 调整。
@@ -243,6 +253,7 @@ node scripts/validate-skills.mjs --report reports/skill-audit.md   # 另外写�
 - **`exclude` 按目录名匹配**：本包 34 个技能的目录名与 frontmatter `name` 全部一致（校验脚本会检查）；若将来出现不一致，`exclude` 仍以目录名为准。
 - **profile 级改动**：安装与启停影响该 profile 的所有会话；替换已安装的包需要重启 DSH。
 - **入口是技能目录与 `skill` 工具**：没有额外的斜杠菜单或提示词入口。
+- **构建产物不入库**：`lib/` 是 `npm run build` 的输出并被 `.gitignore` 忽略；按目录安装前必须先构建，否则插件行会因为找不到 `lib/index.js` 而加载失败。
 
 ## 许可证
 
