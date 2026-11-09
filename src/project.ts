@@ -6,8 +6,8 @@
  * `ProjectSettings/ProjectVersion.txt` — the marker Unity itself writes and the
  * same file that names the editor version. From there it reads the facts that
  * decide whether a skill applies: the editor version, the UPM packages in
- * `Packages/manifest.json`, the inferred render pipeline, whether an Editor
- * holds the project lock, and whether the `unity` CLI is on `PATH`.
+ * `Packages/manifest.json`, the inferred render pipeline, whether an Editor holds
+ * the project lock, and whether the `unity` CLI is on `PATH`.
  *
  * Everything here is read-only and best-effort. A partially readable project is
  * reported with the fields it does have; a directory that is not a Unity project
@@ -22,14 +22,35 @@ import { dirname, join, resolve } from 'node:path';
 /** Relative path of the file that identifies a Unity project root. */
 export const PROJECT_MARKER = join('ProjectSettings', 'ProjectVersion.txt');
 
+/** Render pipeline inferred from the installed packages. */
+export type RenderPipeline = 'hdrp' | 'urp' | 'builtin';
+
+/** What detection learned about one project. */
+export interface ProjectFacts {
+  readonly root: string;
+  readonly editorVersion?: string;
+  readonly packages?: Map<string, string>;
+  readonly renderPipeline?: RenderPipeline;
+  readonly editorOpen: boolean;
+  readonly cliAvailable: boolean;
+}
+
+/** Collaborators a detection call can substitute, used by tests. */
+export interface DetectOptions {
+  readonly stat?: typeof stat;
+  readonly readFile?: (path: string) => Promise<string>;
+  readonly maxDepth?: number;
+  readonly resolveExecutable?: (command: string) => Promise<string | undefined>;
+}
+
 /** Render-pipeline package ids, in the order that decides the answer. */
-const PIPELINE_PACKAGES = [
+const PIPELINE_PACKAGES: ReadonlyArray<readonly [string, RenderPipeline]> = [
   ['com.unity.render-pipelines.high-definition', 'hdrp'],
   ['com.unity.render-pipelines.universal', 'urp'],
 ];
 
 /** Project-relative skill roots that a project may use to override a skill. */
-const PROJECT_SKILL_ROOTS = [join('.dsh', 'skills'), join('.agents', 'skills')];
+const PROJECT_SKILL_ROOTS = [join('.dsh', 'skills'), join('.agents', 'skills')] as const;
 
 /** How many ancestor directories detection walks before giving up. */
 const DEFAULT_MAX_DEPTH = 8;
@@ -37,11 +58,11 @@ const DEFAULT_MAX_DEPTH = 8;
 /**
  * Find the nearest ancestor containing the Unity project marker.
  *
- * @param {string} cwd - directory to start from.
- * @param {{ stat?: typeof stat, maxDepth?: number }} [options] - injectable fs for tests.
- * @returns {Promise<string | undefined>} absolute project root.
+ * @param cwd - directory to start from.
+ * @param options - injectable filesystem and walk depth.
+ * @returns the absolute project root, or `undefined` when there is none.
  */
-export async function findProjectRoot(cwd, options = {}) {
+export async function findProjectRoot(cwd: string, options: DetectOptions = {}): Promise<string | undefined> {
   const statFile = options.stat ?? stat;
   const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
   let current = resolve(cwd);
@@ -62,10 +83,10 @@ export async function findProjectRoot(cwd, options = {}) {
 /**
  * Read the editor version from `ProjectVersion.txt`.
  *
- * @param {string} text - file contents.
- * @returns {string | undefined} version such as `6000.3.14f1`.
+ * @param text - file contents.
+ * @returns the version such as `6000.3.14f1`, or `undefined` when absent.
  */
-export function parseProjectVersion(text) {
+export function parseProjectVersion(text: string): string | undefined {
   const match = /^\s*m_EditorVersion:\s*(\S+)\s*$/m.exec(text);
   return match?.[1];
 }
@@ -73,17 +94,16 @@ export function parseProjectVersion(text) {
 /**
  * Read installed UPM packages from a manifest.
  *
- * @param {string} text - `Packages/manifest.json` contents.
- * @returns {Map<string, string> | undefined} package id to version, or `undefined`
- *   when the manifest is not a mapping.
+ * @param text - `Packages/manifest.json` contents.
+ * @returns package id to version, or `undefined` when the manifest is not a mapping.
  */
-export function parsePackages(text) {
+export function parsePackages(text: string): Map<string, string> | undefined {
   try {
-    const manifest = JSON.parse(text);
+    const manifest = JSON.parse(text) as { dependencies?: unknown };
     const dependencies = manifest?.dependencies;
     if (typeof dependencies !== 'object' || dependencies === null || Array.isArray(dependencies)) return undefined;
-    const packages = new Map();
-    for (const [name, version] of Object.entries(dependencies)) {
+    const packages = new Map<string, string>();
+    for (const [name, version] of Object.entries(dependencies as Record<string, unknown>)) {
       if (typeof version === 'string') packages.set(name, version.trim());
     }
     return packages;
@@ -95,11 +115,10 @@ export function parsePackages(text) {
 /**
  * Infer the render pipeline from installed packages.
  *
- * @param {Map<string, string> | undefined} packages - installed packages.
- * @returns {'hdrp' | 'urp' | 'builtin' | undefined} pipeline name; `undefined` when
- *   the package list itself is unknown.
+ * @param packages - installed packages, or `undefined` when unknown.
+ * @returns the pipeline name, or `undefined` when the package list is unknown.
  */
-export function inferRenderPipeline(packages) {
+export function inferRenderPipeline(packages: Map<string, string> | undefined): RenderPipeline | undefined {
   if (packages === undefined) return undefined;
   for (const [id, pipeline] of PIPELINE_PACKAGES) {
     if (packages.has(id)) return pipeline;
@@ -110,30 +129,25 @@ export function inferRenderPipeline(packages) {
 /**
  * Detect the Unity project that contains a directory.
  *
- * @param {string} cwd - session working directory.
- * @param {object} [options] - injectable collaborators for tests.
- * @param {typeof stat} [options.stat] - `fs.stat` replacement.
- * @param {typeof readFile} [options.readFile] - `fs.readFile` replacement.
- * @param {(command: string) => Promise<string>} [options.resolveExecutable] - CLI lookup,
- *   usually `ctx.subprocess.resolveExecutable`; omitted when the service is absent.
- * @param {number} [options.maxDepth] - ancestor walk limit.
- * @returns {Promise<object | undefined>} project facts, or `undefined` outside a project.
+ * @param cwd - session working directory.
+ * @param options - injectable collaborators and walk depth.
+ * @returns project facts, or `undefined` outside a project.
  */
-export async function detectProject(cwd, options = {}) {
+export async function detectProject(cwd: string, options: DetectOptions = {}): Promise<ProjectFacts | undefined> {
   if (typeof cwd !== 'string' || cwd === '') return undefined;
   const statFile = options.stat ?? stat;
-  const readText = options.readFile ?? ((path) => readFile(path, 'utf8'));
+  const readText = options.readFile ?? ((path: string) => readFile(path, 'utf8'));
   const root = await findProjectRoot(cwd, { ...options, stat: statFile });
   if (root === undefined) return undefined;
 
-  let editorVersion;
+  let editorVersion: string | undefined;
   try {
     editorVersion = parseProjectVersion(await readText(join(root, PROJECT_MARKER)));
   } catch {
     editorVersion = undefined;
   }
 
-  let packages;
+  let packages: Map<string, string> | undefined;
   try {
     packages = parsePackages(await readText(join(root, 'Packages', 'manifest.json')));
   } catch {
@@ -158,8 +172,8 @@ export async function detectProject(cwd, options = {}) {
 
   return {
     root,
-    editorVersion,
-    packages,
+    ...(editorVersion === undefined ? {} : { editorVersion }),
+    ...(packages === undefined ? {} : { packages }),
     renderPipeline: inferRenderPipeline(packages),
     editorOpen,
     cliAvailable,
@@ -169,13 +183,17 @@ export async function detectProject(cwd, options = {}) {
 /**
  * Skill names a project provides itself, which this plugin must not shadow.
  *
- * @param {string} root - project root.
- * @param {{ readdir?: typeof readdir }} [options] - injectable fs for tests.
- * @returns {Promise<Set<string>>} skill names found under the project skill roots.
+ * @param root - project root.
+ * @param options - injectable filesystem.
+ * @returns skill names found under the project skill roots.
  */
-export async function readProjectSkillNames(root, options = {}) {
+export async function readProjectSkillNames(
+  root: string,
+  options: { readdir?: typeof readdir; stat?: typeof stat } = {},
+): Promise<Set<string>> {
   const listDir = options.readdir ?? readdir;
-  const names = new Set();
+  const statFile = options.stat ?? stat;
+  const names = new Set<string>();
   for (const relative of PROJECT_SKILL_ROOTS) {
     let entries;
     try {
@@ -186,7 +204,7 @@ export async function readProjectSkillNames(root, options = {}) {
     for (const entry of entries) {
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
       try {
-        const info = await stat(join(root, relative, entry.name, 'SKILL.md'));
+        const info = await statFile(join(root, relative, entry.name, 'SKILL.md'));
         if (info.isFile()) names.add(entry.name);
       } catch {
         // A directory without SKILL.md is not a skill override.
@@ -199,11 +217,17 @@ export async function readProjectSkillNames(root, options = {}) {
 /**
  * A short, stable identity for a fact set, used to notice project changes.
  *
- * @param {object | undefined} facts - detected facts.
- * @returns {string} cache and comparison key.
+ * @param facts - detected facts.
+ * @returns a cache and comparison key.
  */
-export function factsKey(facts) {
+export function factsKey(facts: ProjectFacts | undefined): string {
   if (facts === undefined) return 'none';
-  const packages = facts.packages === undefined ? '?' : [...facts.packages.entries()].sort().map(([id, version]) => `${id}@${version}`).join(',');
+  const packages =
+    facts.packages === undefined
+      ? '?'
+      : [...facts.packages.entries()]
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([id, version]) => `${id}@${version}`)
+          .join(',');
   return [facts.root, facts.editorVersion ?? '?', facts.renderPipeline ?? '?', facts.editorOpen ? 'open' : 'closed', packages].join('|');
 }

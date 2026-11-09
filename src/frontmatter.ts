@@ -1,29 +1,46 @@
 /**
  * YAML frontmatter reader for SKILL.md files.
  *
- * The Unity skills were authored for Claude Code, Codex, and Antigravity, whose
- * loaders use a full YAML parser. DeepSeek Harness reads skill frontmatter from
- * its own providers, so this bundle carries a deliberately small reader for the
- * subset those skills actually use:
+ * The skill documents use a small, well-understood subset of YAML, so the plugin
+ * carries its own reader instead of a parser dependency: the package must install
+ * with no build-time or run-time third-party code. Supported syntax:
  *
- * - top-level `key: value` mappings, including nested block mappings one or more
- *   levels deep (`required_packages`, `metadata`)
- * - block sequences (`allowed-tools` followed by `- item` lines)
- * - flow sequences (`modes: [agent, ask]`)
- * - plain, single-quoted, and double-quoted scalars
- * - literal (`|`, `|-`, `|+`) and folded (`>`, `>-`, `>+`) block scalars
- * - full-line comments and inline ` #` comments on plain scalars
+ * - top-level `key: value` mappings, including nested block mappings
+ *   (`required_packages`, `metadata`);
+ * - block sequences (`allowed-tools` followed by `- item` lines);
+ * - flow sequences (`modes: [agent, ask]`);
+ * - plain, single-quoted, and double-quoted scalars;
+ * - literal (`|`, `|-`, `|+`) and folded (`>`, `>-`, `>+`) block scalars;
+ * - full-line comments and inline ` #` comments on plain scalars.
  *
- * Scalars resolve through the YAML 1.2 core schema (`null`, `true`/`false`,
- * integers, and floats), which is what the built-in filesystem provider's
- * parser produces, and everything else stays a string. The invocation policy
- * still reads its two keys through {@link frontmatterBoolean} with the same
- * strict grammar the registry uses. A value this reader cannot represent is
- * reported to the caller instead of being guessed, so a malformed skill is
- * skipped with a warning rather than advertised with a wrong description.
+ * Scalars resolve through the YAML 1.2 core schema, matching what a full parser
+ * would produce for these documents. The invocation policy uses the registry's
+ * strict boolean grammar. A value this reader cannot represent is reported as a
+ * syntax error so the caller can skip the skill instead of advertising a wrong
+ * description.
  *
  * @module dsh-unity/lib/frontmatter
  */
+
+/** A parsed YAML scalar, sequence, or mapping. */
+export type YamlValue = string | number | boolean | null | YamlValue[] | YamlMapping;
+
+/** A parsed YAML mapping. */
+export interface YamlMapping {
+  [key: string]: YamlValue;
+}
+
+/** Parsed frontmatter plus the Markdown body that follows it. */
+export interface ParsedSkill {
+  readonly data: YamlMapping;
+  readonly body: string;
+}
+
+/** The two invocation controls the registry understands. */
+export interface InvocationPolicy {
+  readonly modelInvocable: boolean;
+  readonly userInvocable: boolean;
+}
 
 /** Kebab-case grammar shared by the harness skill registry. */
 export const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -34,20 +51,16 @@ const BLOCK_HEADER = /^([|>])([+-]?)(\d?)$/;
 /**
  * Split a Markdown document into its YAML frontmatter block and body.
  *
- * @param {string} raw - complete file text.
- * @returns {{ yaml: string, body: string } | undefined} the frontmatter source and
- *   the Markdown body, or `undefined` when the document has no frontmatter fence.
+ * @param raw - complete file text.
+ * @returns the frontmatter source and body, or `undefined` without a fence.
  */
-export function splitFrontmatter(raw) {
+export function splitFrontmatter(raw: string): { yaml: string; body: string } | undefined {
   const text = raw.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
   const lines = text.split('\n');
   if (lines[0]?.trimEnd() !== FENCE) return undefined;
   for (let index = 1; index < lines.length; index += 1) {
     if (lines[index]?.trimEnd() === FENCE) {
-      return {
-        yaml: lines.slice(1, index).join('\n'),
-        body: lines.slice(index + 1).join('\n'),
-      };
+      return { yaml: lines.slice(1, index).join('\n'), body: lines.slice(index + 1).join('\n') };
     }
   }
   return undefined;
@@ -56,29 +69,28 @@ export function splitFrontmatter(raw) {
 /**
  * Parse a SKILL.md document into frontmatter fields and body.
  *
- * @param {string} raw - complete file text.
- * @returns {{ data: Record<string, unknown>, body: string } | undefined} parsed
- *   frontmatter and the trimmed body, or `undefined` without a frontmatter fence.
+ * @param raw - complete file text.
+ * @returns parsed frontmatter and the trimmed body, or `undefined` without a fence.
  * @throws {SyntaxError} when the frontmatter is not the supported YAML subset.
  */
-export function parseSkillMarkdown(raw) {
+export function parseSkillMarkdown(raw: string): ParsedSkill | undefined {
   const split = splitFrontmatter(raw);
   if (split === undefined) return undefined;
   const data = parseYamlSubset(split.yaml);
   if (data === null || typeof data !== 'object' || Array.isArray(data)) {
     throw new SyntaxError('frontmatter is not a mapping');
   }
-  return { data, body: split.body.trim() };
+  return { data: data as YamlMapping, body: split.body.trim() };
 }
 
 /**
- * Parse the supported YAML subset into a plain JavaScript value.
+ * Parse the supported YAML subset into a plain value.
  *
- * @param {string} source - YAML text without the surrounding fences.
- * @returns {unknown} mapping, sequence, scalar, or `null` for `key:` without a value.
+ * @param source - YAML text without the surrounding fences.
+ * @returns a mapping, sequence, scalar, or `null` for a `key:` without a value.
  * @throws {SyntaxError} on indentation this subset cannot represent.
  */
-export function parseYamlSubset(source) {
+export function parseYamlSubset(source: string): YamlValue {
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
   const cursor = { index: 0 };
   skipInert(lines, cursor);
@@ -94,12 +106,12 @@ export function parseYamlSubset(source) {
 /**
  * Read a frontmatter boolean with the registry's strict grammar.
  *
- * @param {Record<string, unknown>} data - parsed frontmatter.
- * @param {string} key - exact frontmatter key.
- * @returns {boolean | undefined} the value, or `undefined` when the key is absent.
+ * @param data - parsed frontmatter.
+ * @param key - exact frontmatter key.
+ * @returns the value, or `undefined` when the key is absent.
  * @throws {TypeError} when the key is present but is not a boolean spelling.
  */
-export function frontmatterBoolean(data, key) {
+export function frontmatterBoolean(data: YamlMapping, key: string): boolean | undefined {
   if (!Object.hasOwn(data, key)) return undefined;
   const value = data[key];
   if (typeof value === 'boolean') return value;
@@ -125,19 +137,19 @@ export function frontmatterBoolean(data, key) {
 /**
  * Resolve the invocation policy from frontmatter.
  *
- * @param {Record<string, unknown>} data - parsed frontmatter.
- * @returns {{ modelInvocable: boolean, userInvocable: boolean }} the policy; absent
- *   keys keep both surfaces permitted.
+ * @param data - parsed frontmatter.
+ * @returns the policy; absent keys keep both surfaces permitted.
  * @throws {Error} when a legacy camelCase key is present.
  */
-export function parseInvocation(data) {
-  for (const [legacy, canonical] of [
+export function parseInvocation(data: YamlMapping): InvocationPolicy {
+  const legacy: ReadonlyArray<readonly [string, string]> = [
     ['disableModelInvocation', 'disable-model-invocation'],
     ['modelInvocable', 'disable-model-invocation'],
     ['userInvocable', 'user-invocable'],
-  ]) {
-    if (Object.hasOwn(data, legacy)) {
-      throw new Error(`frontmatter field "${legacy}" is unsupported; use "${canonical}"`);
+  ];
+  for (const [alias, canonical] of legacy) {
+    if (Object.hasOwn(data, alias)) {
+      throw new Error(`frontmatter field "${alias}" is unsupported; use "${canonical}"`);
     }
   }
   return {
@@ -146,8 +158,12 @@ export function parseInvocation(data) {
   };
 }
 
+interface Cursor {
+  index: number;
+}
+
 /** Advance the cursor past blank lines and full-line comments. */
-function skipInert(lines, cursor) {
+function skipInert(lines: string[], cursor: Cursor): void {
   while (cursor.index < lines.length) {
     const line = lines[cursor.index] ?? '';
     if (line.trim() === '' || line.trimStart().startsWith('#')) {
@@ -158,29 +174,22 @@ function skipInert(lines, cursor) {
   }
 }
 
-/** Count leading spaces of a line; tabs are rejected by the caller. */
-function indentationOf(line) {
+/** Count leading spaces of a line. */
+function indentationOf(line: string): number {
   const match = /^ */.exec(line);
   return match === null ? 0 : match[0].length;
 }
 
-/**
- * Parse one block (mapping or sequence) whose lines start at `indent`.
- *
- * @param {string[]} lines - frontmatter lines.
- * @param {{ index: number }} cursor - current line.
- * @param {number} indent - indentation shared by this block's lines.
- * @returns {unknown} parsed mapping, sequence, or scalar.
- */
-function parseBlock(lines, cursor, indent) {
+/** Parse one block (mapping or sequence) whose lines start at `indent`. */
+function parseBlock(lines: string[], cursor: Cursor, indent: number): YamlValue {
   const first = lines[cursor.index] ?? '';
   if (/^\s*-(?:\s|$)/.test(first)) return parseSequence(lines, cursor, indent);
   return parseMapping(lines, cursor, indent);
 }
 
 /** Parse consecutive `key: value` lines at one indentation. */
-function parseMapping(lines, cursor, indent) {
-  const result = {};
+function parseMapping(lines: string[], cursor: Cursor, indent: number): YamlMapping {
+  const result: YamlMapping = {};
   while (true) {
     skipInert(lines, cursor);
     if (cursor.index >= lines.length) break;
@@ -190,7 +199,7 @@ function parseMapping(lines, cursor, indent) {
     if (current > indent) throw new SyntaxError(`unexpected indentation on line ${cursor.index + 1}`);
     const entry = /^([^:#][^:]*?):(?:[ \t]+(.*)|[ \t]*)$/.exec(line.slice(indent));
     if (entry === null) throw new SyntaxError(`expected "key: value" on line ${cursor.index + 1}`);
-    const key = entry[1].trim();
+    const key = entry[1]?.trim() ?? '';
     const rest = (entry[2] ?? '').trimEnd();
     cursor.index += 1;
     result[key] = parseValue(lines, cursor, indent, rest);
@@ -199,8 +208,8 @@ function parseMapping(lines, cursor, indent) {
 }
 
 /** Parse consecutive `- item` lines at one indentation. */
-function parseSequence(lines, cursor, indent) {
-  const result = [];
+function parseSequence(lines: string[], cursor: Cursor, indent: number): YamlValue[] {
+  const result: YamlValue[] = [];
   while (true) {
     skipInert(lines, cursor);
     if (cursor.index >= lines.length) break;
@@ -224,32 +233,20 @@ function parseSequence(lines, cursor, indent) {
   return result;
 }
 
-/**
- * Resolve the value that follows `key:` or `- `.
- *
- * @param {string[]} lines - frontmatter lines.
- * @param {{ index: number }} cursor - line after the key or item marker.
- * @param {number} indent - indentation of the owning block.
- * @param {string} rest - text after the marker, trimmed.
- * @returns {unknown} the scalar, or a nested mapping when `rest` is empty.
- */
-function parseValue(lines, cursor, indent, rest) {
+/** Resolve the value that follows `key:` or `- `. */
+function parseValue(lines: string[], cursor: Cursor, indent: number, rest: string): YamlValue {
   if (rest.startsWith('#')) return parseNestedOrNull(lines, cursor, indent);
   const block = BLOCK_HEADER.exec(rest);
   if (block !== null) return parseBlockScalar(lines, cursor, indent, block[1], block[2]);
   if (rest !== '') {
     const plain = stripComment(rest);
-    if (plain === '') {
-      // A value that was only a comment behaves like an empty value.
-      return parseNestedOrNull(lines, cursor, indent);
-    }
-    return parseScalar(plain);
+    return plain === '' ? parseNestedOrNull(lines, cursor, indent) : parseScalar(plain);
   }
   return parseNestedOrNull(lines, cursor, indent);
 }
 
 /** Read a nested block after `key:` when no inline value was present. */
-function parseNestedOrNull(lines, cursor, indent) {
+function parseNestedOrNull(lines: string[], cursor: Cursor, indent: number): YamlValue {
   skipInert(lines, cursor);
   const next = lines[cursor.index];
   if (next === undefined) return null;
@@ -259,9 +256,15 @@ function parseNestedOrNull(lines, cursor, indent) {
 }
 
 /** Collect an indented block scalar and apply its folding and chomping. */
-function parseBlockScalar(lines, cursor, indent, style, chomping) {
-  const collected = [];
-  let blockIndent;
+function parseBlockScalar(
+  lines: string[],
+  cursor: Cursor,
+  indent: number,
+  style: string | undefined,
+  chomping: string | undefined,
+): string {
+  const collected: string[] = [];
+  let blockIndent: number | undefined;
   while (cursor.index < lines.length) {
     const line = lines[cursor.index] ?? '';
     if (line.trim() === '') {
@@ -278,14 +281,13 @@ function parseBlockScalar(lines, cursor, indent, style, chomping) {
   while (collected.length > 0 && collected[collected.length - 1] === '') {
     collected.pop();
   }
-  const text =
-    style === '|' ? collected.join('\n') : foldLines(collected);
+  const text = style === '|' ? collected.join('\n') : foldLines(collected);
   if (chomping === '-') return text;
   return collected.length === 0 ? '' : `${text}\n`;
 }
 
 /** Fold block-scalar lines: single breaks become spaces, blank lines newlines. */
-function foldLines(lines) {
+function foldLines(lines: string[]): string {
   let out = '';
   let pendingBreaks = 0;
   for (const line of lines) {
@@ -306,13 +308,13 @@ function foldLines(lines) {
 }
 
 /** Strip a ` #` inline comment from a plain scalar. */
-function stripComment(text) {
+function stripComment(text: string): string {
   const index = text.search(/\s#/);
   return index < 0 ? text.trim() : text.slice(0, index).trim();
 }
 
 /** Parse a single inline scalar: flow sequence, quoted string, or plain text. */
-function parseScalar(text) {
+function parseScalar(text: string): YamlValue {
   if (text.startsWith('[') && text.endsWith(']')) {
     const inner = text.slice(1, -1).trim();
     if (inner === '') return [];
@@ -328,7 +330,7 @@ function parseScalar(text) {
 }
 
 /** Resolve a plain scalar through the YAML 1.2 core schema. */
-function resolvePlain(text) {
+function resolvePlain(text: string): YamlValue {
   switch (text) {
     case 'null':
     case 'Null':
@@ -352,10 +354,10 @@ function resolvePlain(text) {
 }
 
 /** Split flow-sequence contents on commas that are not inside quotes. */
-function splitFlow(text) {
-  const parts = [];
+function splitFlow(text: string): string[] {
+  const parts: string[] = [];
   let current = '';
-  let quote;
+  let quote: string | undefined;
   for (const char of text) {
     if (quote !== undefined) {
       current += char;
@@ -378,8 +380,8 @@ function splitFlow(text) {
   return parts;
 }
 
-/** Decode the double-quoted escapes present in these skills. */
-function unescapeDouble(text) {
+/** Decode the double-quoted escapes present in these documents. */
+function unescapeDouble(text: string): string {
   let out = '';
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];

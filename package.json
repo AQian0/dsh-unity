@@ -17,35 +17,46 @@
   ],
   "license": "LicenseRef-Unity-Companion-License",
   "type": "module",
-  "main": "index.js",
+  "main": "lib/index.js",
   "exports": {
-    ".": "./index.js",
-    "./lib/*.js": "./lib/*.js",
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
   "files": [
-    "index.js",
-    "lib/*.js",
+    "lib/**/*.js",
+    "lib/types/**/*.d.ts",
     "cordis.patch.yml",
     "locale/*.json",
     "skills/**",
     "icon.svg",
     "LICENSE.md",
     "README.md",
-    "docs/*.md",
-    "scripts/*.mjs",
-    "test/*.js"
+    "docs/*.md"
   ],
   "scripts": {
-    "test": "node --test test/*.test.js",
-    "validate": "node scripts/validate-skills.mjs"
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "validate": "node scripts/validate-skills.ts"
   },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
     }
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  },
+  "types": "lib/types/index.d.ts",
+  "engines": {
+    "node": ">=22.6"
   }
 }

@@ -1,27 +1,23 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { gateCatalog, renderContext, decideVisibility } from '../lib/gating.js';
+import { gateCatalog, renderContext, decideVisibility } from '../src/gating.ts';
+import type { GatingSettings, HiddenSkill } from '../src/gating.ts';
+import type { ProjectFacts } from '../src/project.ts';
+import type { SkillCandidate, SkillRequirements } from '../src/harness.ts';
 
-/** Plugin settings as `resolveSettings` would produce them. */
-function settings(overrides = {}) {
+/** The gating-relevant subset of the plugin settings. */
+function settings(overrides: Partial<GatingSettings> = {}): GatingSettings {
   return {
-    providerName: 'unity',
-    rank: 240,
-    skillDir: '/pkg/skills',
-    exclude: new Set(),
     workspaceSkills: new Set(['new-unity-project', 'unity-cli', 'unity-package-management']),
     gateByProject: true,
     enforceRequirements: true,
-    injectContext: true,
-    watchSkills: true,
-    respectProjectRoots: true,
     ...overrides,
   };
 }
 
 /** One candidate carrying the requirements a real skill would have. */
-function candidate(name, requirements = { packages: [] }) {
+function candidate(name: string, requirements: SkillRequirements = { packages: [] }): SkillCandidate {
   return {
     name,
     description: `${name} skill`,
@@ -36,7 +32,7 @@ function candidate(name, requirements = { packages: [] }) {
   };
 }
 
-const modernProject = {
+const modernProject: ProjectFacts & { packages: Map<string, string> } = {
   root: '/Project',
   editorVersion: '6000.3.14f1',
   packages: new Map([['com.unity.ugui', '2.0.0']]),
@@ -57,6 +53,7 @@ test('outside a Unity project only the workspace skills stay model-visible', () 
   // Hidden skills stay in the catalog so a person can still invoke them by name.
   assert.equal(result.candidates.length, 3);
   const hiddenCandidate = result.candidates.find((entry) => entry.name === 'ui-uitk');
+  assert.ok(hiddenCandidate);
   assert.equal(hiddenCandidate.invocation.userInvocable, true);
 });
 
@@ -64,6 +61,7 @@ test('an unmet editor requirement leaves the model catalog without removing the 
   const candidates = [candidate('build-gtk', { editor: '>=6000.6', packages: [] })];
   const result = gateCatalog(candidates, modernProject, settings());
   const gated = result.candidates[0];
+  assert.ok(gated);
   assert.equal(gated.invocation.modelInvocable, false);
   assert.equal(gated.invocation.userInvocable, true);
   assert.match(result.hidden[0].reason, /needs Unity >=6000\.6 \(project 6000\.3\.14f1\)/);
@@ -72,14 +70,14 @@ test('an unmet editor requirement leaves the model catalog without removing the 
 test('a met editor requirement keeps the skill visible', () => {
   const candidates = [candidate('fix-3d-physics-collisions', { editor: '>=6000.3', packages: [] })];
   const result = gateCatalog(candidates, modernProject, settings());
-  assert.equal(result.candidates[0].invocation.modelInvocable, true);
+  assert.equal(result.candidates[0]?.invocation.modelInvocable, true);
   assert.deepEqual(result.hidden, []);
 });
 
 test('missing packages hide the skill and name the package', () => {
   const candidates = [candidate('shader-graph-create-custom-node', { packages: [{ name: 'com.unity.shadergraph', range: '>=17.5.0' }] })];
   const result = gateCatalog(candidates, modernProject, settings());
-  assert.equal(result.candidates[0].invocation.modelInvocable, false);
+  assert.equal(result.candidates[0]?.invocation.modelInvocable, false);
   assert.match(result.hidden[0].reason, /missing package com\.unity\.shadergraph/);
 });
 
@@ -107,9 +105,9 @@ test('a skill the project provides itself is not offered by this plugin', () => 
 test('switches turn individual rules off', () => {
   const candidates = [candidate('build-gtk', { editor: '>=6000.6', packages: [] })];
   const noRequirements = gateCatalog(candidates, modernProject, settings({ enforceRequirements: false }));
-  assert.equal(noRequirements.candidates[0].invocation.modelInvocable, true);
+  assert.equal(noRequirements.candidates[0]?.invocation.modelInvocable, true);
   const noProjectGate = gateCatalog([candidate('ui-uitk')], undefined, settings({ gateByProject: false }));
-  assert.equal(noProjectGate.candidates[0].invocation.modelInvocable, true);
+  assert.equal(noProjectGate.candidates[0]?.invocation.modelInvocable, true);
 });
 
 test('decideVisibility reports a reason only when it hides', () => {
@@ -124,13 +122,15 @@ test('the runtime context names the project and the hidden skills', () => {
     { name: 'build-gtk', reason: 'needs Unity >=6000.6 (project 6000.3.14f1)' },
     { name: 'urp-postprocessing', reason: 'missing package com.unity.render-pipelines.universal' },
   ]);
+  assert.ok(text);
   assert.match(text, /^Unity project: \/Project \(Editor 6000\.3\.14f1, BUILTIN, Editor closed, unity CLI available\)\./);
   assert.match(text, /skills hidden for this project: build-gtk/);
   assert.equal(renderContext(undefined, []), undefined);
 });
 
 test('the context truncates a long hidden list', () => {
-  const hidden = Array.from({ length: 9 }, (_value, index) => ({ name: `skill-${index}`, reason: 'x' }));
+  const hidden: HiddenSkill[] = Array.from({ length: 9 }, (_value, index) => ({ name: `skill-${index}`, reason: 'x' }));
   const text = renderContext(modernProject, hidden);
+  assert.ok(text);
   assert.match(text, /and 3 more/);
 });

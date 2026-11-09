@@ -5,33 +5,65 @@
  * and load it (`modelInvocable`) and whether a person may invoke it by name
  * (`userInvocable`). That split is exactly what project-aware gating needs: a
  * skill that does not apply to the current project should leave the model's
- * catalog to save tokens and avoid wrong suggestions, while staying reachable
+ * catalog to save context and avoid wrong suggestions, while staying reachable
  * through an explicit `/skill-name` request.
  *
  * The rules here are intentionally conservative:
  *
  * - outside a Unity project only the configured workspace skills stay visible;
  * - an unmet editor or package requirement hides the skill;
- * - an *unknown* fact never hides a skill, it only records that the check could
- *   not be made, so a broken manifest cannot silently empty the catalog;
+ * - an *unknown* fact never hides a skill, so a broken manifest cannot silently
+ *   empty the catalog;
  * - a skill the project provides itself is not offered by this plugin at all,
  *   which is what keeps a project's own customization authoritative.
  *
  * @module dsh-unity/lib/gating
  */
 
-import { evaluateRequirements } from './requirements.js';
+import type { SkillCandidate } from './harness.ts';
+import type { ProjectFacts } from './project.ts';
+import { evaluateRequirements } from './requirements.ts';
+
+/** The settings that change a gating decision. */
+export interface GatingSettings {
+  readonly enforceRequirements: boolean;
+  readonly gateByProject: boolean;
+  readonly workspaceSkills: ReadonlySet<string>;
+}
+
+/** One skill left out of the model catalog, with the reason shown to the model. */
+export interface HiddenSkill {
+  readonly name: string;
+  readonly reason: string;
+}
+
+/** The catalog this plugin serves for one agent. */
+export interface GatedCatalog {
+  /** Every candidate, with `modelInvocable` adjusted for hidden skills. */
+  readonly candidates: SkillCandidate[];
+  readonly hidden: HiddenSkill[];
+  readonly projectOverridden: string[];
+}
+
+/** The model-visibility decision for a single skill. */
+export interface VisibilityDecision {
+  readonly modelInvocable: boolean;
+  readonly reason: string | undefined;
+}
 
 /**
  * Decide the model-visibility of one skill candidate.
  *
- * @param {object} candidate - skill candidate carrying `requirements`.
- * @param {object | undefined} facts - project facts from `detectProject`.
- * @param {object} settings - resolved plugin settings.
- * @returns {{ modelInvocable: boolean, reason: string | undefined }} the decision and,
- *   when hidden, a short human-readable reason.
+ * @param candidate - candidate carrying its `requirements`.
+ * @param facts - project facts from `detectProject`.
+ * @param settings - resolved plugin settings.
+ * @returns the decision and, when hidden, a short human-readable reason.
  */
-export function decideVisibility(candidate, facts, settings) {
+export function decideVisibility(
+  candidate: SkillCandidate,
+  facts: ProjectFacts | undefined,
+  settings: GatingSettings,
+): VisibilityDecision {
   if (!settings.enforceRequirements) return { modelInvocable: true, reason: undefined };
   const verdict = evaluateRequirements(candidate.requirements ?? { packages: [] }, facts);
   if (!verdict.applicable) return { modelInvocable: false, reason: verdict.reasons.join('; ') };
@@ -41,24 +73,25 @@ export function decideVisibility(candidate, facts, settings) {
 /**
  * Build the catalog this plugin serves for one agent.
  *
- * Every candidate stays in the list so that a person can still invoke a hidden
- * skill by name; only its `modelInvocable` flag changes. Candidates the project
+ * Every candidate stays in the list so a person can still invoke a hidden skill
+ * by name; only its `modelInvocable` flag changes. Candidates the project
  * overrides are dropped instead, so the project's own copy wins the name.
  *
- * @param {object[]} candidates - candidates from the skill reader.
- * @param {object | undefined} facts - project facts, or `undefined` outside a project.
- * @param {object} settings - resolved plugin settings.
- * @param {Set<string>} [projectSkills] - skill names the project supplies itself.
- * @returns {{
- *   candidates: object[],
- *   hidden: Array<{ name: string, reason: string }>,
- *   projectOverridden: string[],
- * }} gated candidates and the reasons for every hidden skill.
+ * @param candidates - candidates from the skill reader.
+ * @param facts - project facts, or `undefined` outside a project.
+ * @param settings - resolved plugin settings.
+ * @param projectSkills - skill names the project supplies itself.
+ * @returns gated candidates and the reasons for every hidden skill.
  */
-export function gateCatalog(candidates, facts, settings, projectSkills = new Set()) {
-  const gated = [];
-  const hidden = [];
-  const projectOverridden = [];
+export function gateCatalog(
+  candidates: readonly SkillCandidate[],
+  facts: ProjectFacts | undefined,
+  settings: GatingSettings,
+  projectSkills: ReadonlySet<string> = new Set<string>(),
+): GatedCatalog {
+  const gated: SkillCandidate[] = [];
+  const hidden: HiddenSkill[] = [];
+  const projectOverridden: string[] = [];
   const workspaceOnly = facts === undefined && settings.gateByProject;
 
   for (const candidate of candidates) {
@@ -66,7 +99,7 @@ export function gateCatalog(candidates, facts, settings, projectSkills = new Set
       projectOverridden.push(candidate.name);
       continue;
     }
-    let reason;
+    let reason: string | undefined;
     if (workspaceOnly && !settings.workspaceSkills.has(candidate.name)) {
       reason = 'no Unity project in this session';
     } else {
@@ -90,15 +123,17 @@ export function gateCatalog(candidates, facts, settings, projectSkills = new Set
  * Kept to one short paragraph: it is re-read on every prompt assembly, so it must
  * describe facts the model cannot infer and nothing else.
  *
- * @param {object | undefined} facts - project facts.
- * @param {Array<{ name: string, reason: string }>} hidden - gated-away skills.
- * @returns {string | undefined} context text, or `undefined` when there is nothing to say.
+ * @param facts - project facts.
+ * @param hidden - gated-away skills.
+ * @returns the context text, or `undefined` when there is nothing to say.
  */
-export function renderContext(facts, hidden) {
+export function renderContext(facts: ProjectFacts | undefined, hidden: readonly HiddenSkill[]): string | undefined {
   if (facts === undefined) return undefined;
   const pipeline = facts.renderPipeline === undefined ? '' : `, ${facts.renderPipeline.toUpperCase()}`;
   const parts = [
-    `Unity project: ${facts.root} (Editor ${facts.editorVersion ?? 'unknown'}${pipeline}, Editor ${facts.editorOpen ? 'open' : 'closed'}, unity CLI ${facts.cliAvailable ? 'available' : 'not found'})`,
+    `Unity project: ${facts.root} (Editor ${facts.editorVersion ?? 'unknown'}${pipeline}, Editor ${
+      facts.editorOpen ? 'open' : 'closed'
+    }, unity CLI ${facts.cliAvailable ? 'available' : 'not found'})`,
   ];
   if (hidden.length > 0) {
     const listed = hidden.slice(0, 6).map((entry) => `${entry.name} (${entry.reason})`);

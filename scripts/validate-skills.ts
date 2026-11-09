@@ -22,14 +22,63 @@
 
 import { readdir, readFile, stat, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-import { SKILL_NAME, parseSkillMarkdown, splitFrontmatter } from '../lib/frontmatter.js';
-import { readRequirements, satisfiesRange } from '../lib/requirements.js';
-import { createUnitySkillReader } from '../lib/skills.js';
+import { SKILL_NAME, parseSkillMarkdown, splitFrontmatter } from '../src/frontmatter.ts';
+import { readRequirements, satisfiesRange } from '../src/requirements.ts';
+import { createUnitySkillReader } from '../src/skills.ts';
 
 /** Repository root, derived from this script so the validator works from any cwd. */
-const PACKAGE_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
+
+/** One failed check. */
+interface Finding {
+  readonly file: string;
+  readonly check: string;
+  readonly message: string;
+}
+
+/** One skill's collected facts, rendered as a console line and a report row. */
+interface SkillRow {
+  folder: string;
+  name: string;
+  description: string;
+  descriptionLength: number;
+  extras: string[];
+  bodyBytes: number;
+  requirements?: string[];
+  readonly file: string;
+}
+
+/** Parsed command-line options. */
+interface CliOptions {
+  skillsDir: string;
+  report?: string;
+  positional?: string;
+  help: boolean;
+}
+
+/** Digest of one run, consumed by both renderers. */
+interface Summary {
+  skills: number;
+  passed: number;
+  failedSkills: number;
+  candidates: number;
+  loaded: number;
+  failures: number;
+  warnings: number;
+  providerWarnings: number;
+  references: number;
+  referencesResolved: number;
+  referenceWarnings: number;
+  largestBody: number;
+  failureCounts: Record<string, number>;
+  extrasKeys: string[];
+  extrasSkills: number;
+  failuresList: Finding[];
+  warningsList: Finding[];
+  providerWarningsList: string[];
+  rows: SkillRow[];
+  skillsDir: string;
+}
 
 /** Frontmatter keys the DSH skill provider understands itself. */
 const STANDARD_KEYS = new Set([
@@ -59,7 +108,7 @@ const NON_LITERAL = /[*<>{}()[\]$\\]/;
 const NEGATED_PREFIX = /(?:\bno\b|\bnot\b|\bwithout\b|\bnever\b|n['\u2019]t\b)[^,;)\n]{0,80}$/i;
 
 /** Skill-relative link target, including a trailing `#anchor`. */
-function normalizeReference(target) {
+function normalizeReference(target: string): string {
   return target.replace(/#.*$/u, '').replace(/[.,;:!?]+$/u, '');
 }
 
@@ -69,7 +118,7 @@ function normalizeReference(target) {
  * @param {string} token - normalized token.
  * @returns {boolean} true for literal paths under a known resource directory.
  */
-function isSkillRelativePath(token) {
+function isSkillRelativePath(token: string): boolean {
   return RESOURCE_PREFIX.test(token) && !NON_LITERAL.test(token);
 }
 
@@ -84,9 +133,9 @@ function isSkillRelativePath(token) {
  * @param {number} firstLineNumber - file line number of `lines[0]`.
  * @returns {Map<string, number>} reference path to first mentioning line.
  */
-function collectReferences(lines, firstLineNumber) {
-  const references = new Map();
-  const note = (path, index) => {
+function collectReferences(lines: readonly string[], firstLineNumber: number): Map<string, number> {
+  const references = new Map<string, number>();
+  const note = (path: string, index: number): void => {
     if (!references.has(path)) references.set(path, firstLineNumber + index);
   };
   lines.forEach((line, index) => {
@@ -117,7 +166,7 @@ function collectReferences(lines, firstLineNumber) {
 }
 
 /** Follow symlinks when deciding whether a directory entry is a skill folder. */
-async function isDirectoryEntry(parent, entry) {
+async function isDirectoryEntry(parent: string, entry: { name: string; isDirectory(): boolean; isSymbolicLink(): boolean }): Promise<boolean> {
   if (entry.isDirectory()) return true;
   if (!entry.isSymbolicLink()) return false;
   try {
@@ -130,10 +179,10 @@ async function isDirectoryEntry(parent, entry) {
 /**
  * Entry point.
  *
- * @returns {Promise<number>} process exit code.
+ * @returns process exit code.
  */
-async function main() {
-  let options;
+async function main(): Promise<number> {
+  let options: CliOptions;
   try {
     options = parseArguments(process.argv.slice(2));
   } catch (error) {
@@ -146,12 +195,16 @@ async function main() {
   }
   const skillsDir = resolve(options.skillsDir);
 
-  const failures = [];
-  const warnings = [];
-  const providerWarnings = [];
-  const rows = [];
-  const fail = (file, check, message) => failures.push({ file, check, message });
-  const warn = (file, check, message) => warnings.push({ file, check, message });
+  const failures: Finding[] = [];
+  const warnings: Finding[] = [];
+  const providerWarnings: string[] = [];
+  const rows: SkillRow[] = [];
+  const fail = (file: string, check: string, message: string): void => {
+    failures.push({ file, check, message });
+  };
+  const warn = (file: string, check: string, message: string): void => {
+    warnings.push({ file, check, message });
+  };
 
   // ---------------------------------------------------------------------------
   // Directory shape: every skill folder must carry SKILL.md.
@@ -186,7 +239,7 @@ async function main() {
   for (const folder of folders) {
     const dir = join(skillsDir, folder);
     const file = join(dir, 'SKILL.md');
-    const row = {
+    const row: SkillRow = {
       folder,
       name: '',
       description: '',
@@ -316,7 +369,7 @@ async function main() {
     logger: { warn: (message) => providerWarnings.push(message) },
   });
 
-  let candidates = [];
+  let candidates: Awaited<ReturnType<typeof reader.list>> = [];
   try {
     candidates = await reader.list();
   } catch (error) {
@@ -390,7 +443,7 @@ async function main() {
   // Summary and report.
   // ---------------------------------------------------------------------------
   const failedSkills = rows.filter((row) => failureUnder(failures, join(skillsDir, row.folder))).length;
-  const countFailures = (...checks) => failures.filter((failure) => checks.includes(failure.check)).length;
+  const countFailures = (...checks: string[]): number => failures.filter((failure) => checks.includes(failure.check)).length;
   const referenceWarnings = warnings.filter((warning) => warning.check === 'reference').length;
   const extras = new Map();
   for (const row of rows) {
@@ -440,7 +493,7 @@ async function main() {
 }
 
 /** Type name for diagnostics. */
-function typeName(value) {
+function typeName(value: unknown): string {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'array';
   return typeof value;
@@ -460,8 +513,8 @@ Exit code 0 when every failure check passes, 1 on failures, 2 on usage errors.`;
  * @param {string[]} argv - arguments after the script name.
  * @returns {{ skillsDir: string, report?: string, positional?: string, help: boolean }} options.
  */
-function parseArguments(argv) {
-  const options = { skillsDir: 'skills', help: false, positional: undefined };
+function parseArguments(argv: readonly string[]): CliOptions {
+  const options: CliOptions = { skillsDir: 'skills', help: false, positional: undefined };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === '--help' || argument === '-h') {
@@ -490,7 +543,7 @@ function parseArguments(argv) {
  * @param {string} dir - absolute skill folder.
  * @returns {boolean} true when a failure path is inside that folder.
  */
-function failureUnder(failures, dir) {
+function failureUnder(failures: readonly Finding[], dir: string): boolean {
   return failures.some((failure) => failure.file === dir || failure.file.startsWith(`${dir}${sep}`));
 }
 
@@ -498,9 +551,9 @@ function failureUnder(failures, dir) {
  * Render the console summary.
  *
  * @param {object} summary - collected results.
- * @returns {string} text for stdout.
+ * @returns text for stdout.
  */
-function renderConsole(summary) {
+function renderConsole(summary: Summary): string {
   const lines = [];
   lines.push(`Unity skill audit — ${summary.skillsDir}`);
   lines.push('');
@@ -547,7 +600,7 @@ function renderConsole(summary) {
 }
 
 /** Escape a value for a Markdown table cell. */
-function cell(value) {
+function cell(value: unknown): string {
   return String(value).replaceAll('|', '\\|').replaceAll('\n', ' ');
 }
 
@@ -557,7 +610,7 @@ function cell(value) {
  * @param {object} summary - collected results.
  * @returns {string} report source.
  */
-function renderMarkdown(summary) {
+function renderMarkdown(summary: Summary): string {
   const lines = [];
   lines.push('# Unity skill audit');
   lines.push('');
@@ -591,7 +644,7 @@ function renderMarkdown(summary) {
   lines.push('');
   lines.push('| Check | Result | Detail |');
   lines.push('| --- | --- | --- |');
-  const status = (count, word = 'failure') => (count === 0 ? 'pass' : `${count} ${word}${count === 1 ? '' : 's'}`);
+  const status = (count: number, word = 'failure'): string => (count === 0 ? 'pass' : `${count} ${word}${count === 1 ? '' : 's'}`);
   const checks = summary.failureCounts;
   lines.push(`| SKILL.md in every skill folder | ${status(checks.layout)} | ${summary.skills} folders |`);
   lines.push(`| Frontmatter parses (\`parseSkillMarkdown\`) | ${status(checks.frontmatter)} | ${summary.skills} skills |`);

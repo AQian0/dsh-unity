@@ -4,24 +4,25 @@ import { access, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createUnitySkillReader } from '../lib/skills.js';
+import { createUnitySkillReader } from '../src/skills.ts';
+import type { ReaderOptions } from '../src/skills.ts';
 
 const SKILL_DIR = fileURLToPath(new URL('../skills/', import.meta.url));
 
 /** Collect warnings instead of printing them. */
-function createLogger() {
-  const warnings = [];
-  return { warnings, logger: { warn: (message) => warnings.push(message) } };
+function createLogger(): { warnings: string[]; logger: { warn(message: string): void } } {
+  const warnings: string[] = [];
+  return { warnings, logger: { warn: (message: string) => warnings.push(message) } };
 }
 
 /** Reader over the packaged skills, matching the plugin's defaults. */
-function createReader(overrides = {}) {
+function createReader(overrides: Partial<ReaderOptions> = {}) {
   const { warnings, logger } = createLogger();
   const reader = createUnitySkillReader({
     skillDir: SKILL_DIR,
     providerName: 'unity',
     source: 'unity',
-    rank: 350,
+    rank: 240,
     logger,
     ...overrides,
   });
@@ -45,7 +46,7 @@ test('every candidate carries the fields the harness registry validates', async 
   for (const candidate of await reader.list()) {
     assert.equal(candidate.provider, 'unity');
     assert.equal(candidate.source, 'unity');
-    assert.equal(candidate.rank, 350);
+    assert.equal(candidate.rank, 240);
     assert.match(candidate.name, /^[a-z0-9]+(?:-[a-z0-9]+)*$/);
     assert.ok(candidate.description.length > 0, candidate.name);
     assert.deepEqual(candidate.invocation, { modelInvocable: true, userInvocable: true });
@@ -72,11 +73,13 @@ test('extra authoring frontmatter fields stay out of the harness contract', asyn
   const candidates = await reader.list();
   const physics = candidates.find((candidate) => candidate.name === 'create-2d-physics');
   const skill = await reader.load(physics);
+  assert.ok(skill);
   assert.deepEqual(skill.metadata, {
     version: '0.3.0',
     support: 'https://unity.com/support-services',
   });
   const cli = await reader.load(candidates.find((candidate) => candidate.name === 'unity-cli'));
+  assert.ok(cli);
   assert.equal(cli.metadata, undefined);
 });
 
@@ -89,7 +92,7 @@ test('every skill loads with an absolute instruction path and a resource base', 
     assert.equal(skill.provider, 'unity');
     assert.equal(skill.source, 'unity');
     assert.ok(skill.content.trim().length > 0, candidate.name);
-    assert.ok(skill.path.endsWith(join(candidate.name, 'SKILL.md')), skill.path);
+    assert.equal(skill.path?.endsWith(join(candidate.name, 'SKILL.md')), true);
     await access(skill.resourceBase.path);
   }
 });
@@ -100,7 +103,7 @@ test('exclude and rank are honoured', async () => {
   assert.equal(names.includes('unity-cli'), false);
   assert.equal(names.includes('ui'), false);
   assert.equal(names.includes('ui-uitk'), true);
-  assert.equal((await reader.list())[0].rank, 300);
+  assert.equal((await reader.list())[0]?.rank, 300);
 });
 
 test('a missing skill directory is an empty catalog, not a failure', async () => {
@@ -110,7 +113,10 @@ test('a missing skill directory is an empty catalog, not a failure', async () =>
 
 test('loading an unknown candidate returns undefined', async () => {
   const { reader } = createReader();
-  assert.equal(await reader.load({ locator: { dir: SKILL_DIR, file: join(SKILL_DIR, 'missing', 'SKILL.md') } }), undefined);
+  assert.equal(
+    await reader.load({ locator: { dir: SKILL_DIR, file: join(SKILL_DIR, 'missing', 'SKILL.md') } } as never),
+    undefined,
+  );
   assert.equal(await reader.load(undefined), undefined);
 });
 

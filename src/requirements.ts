@@ -4,43 +4,49 @@
  * Skill frontmatter can state what the skill needs: `required_editor_version`
  * (a range such as `>=6000.6`) and `required_packages` (a map of package id to
  * range). The harness has no equivalent mechanism, so this module turns those
- * declarations into a decision the plugin can act on: is the skill applicable
- * to the project this agent is working in?
+ * declarations into a decision the plugin can act on: is the skill applicable to
+ * the project this agent is working in?
  *
- * Version parsing is deliberately tolerant: a Unity editor version like
- * `6000.3.14f1` becomes `[6000, 3, 14]` (the `f1` build suffix is information
- * about the build channel, not ordering), while a package version keeps its
- * prerelease tag when one is present. Anything unparseable is "unknown" and the
- * caller treats unknown as *do not hide* — a wrong declaration must not silently
- * remove a skill.
+ * Parsing is deliberately tolerant. A Unity editor version like `6000.3.14f1`
+ * becomes `[6000, 3, 14]` — the `f1` build suffix is information about the build
+ * channel, not ordering — while a package version keeps its prerelease tag.
+ * Anything unparseable is "unknown", and the caller treats unknown as *do not
+ * hide*: a declaration nobody can evaluate must not silently remove a skill.
  *
  * @module dsh-unity/lib/requirements
  */
 
+import type { SkillRequirements } from './harness.ts';
+
+/** A version split into comparable numeric segments. */
+export interface ParsedVersion {
+  readonly segments: readonly number[];
+  readonly prerelease: string | undefined;
+}
+
 /** Range operators this reader understands, longest match first. */
-const OPERATORS = ['>=', '<=', '>', '<', '=', '^', '~'];
+const OPERATORS = ['>=', '<=', '>', '<', '=', '^', '~'] as const;
 
 /**
  * Parse a version string into comparable numeric segments.
  *
- * @param {unknown} value - raw version such as `6000.3.14f1`, `17.5.0`, `1.2`.
- * @returns {{ segments: number[], prerelease: string | undefined } | undefined}
- *   parsed version, or `undefined` when it is not a version.
+ * @param value - raw version such as `6000.3.14f1`, `17.5.0`, `1.2`.
+ * @returns the parsed version, or `undefined` when it is not a version.
  */
-export function parseVersion(value) {
+export function parseVersion(value: unknown): ParsedVersion | undefined {
   if (typeof value !== 'string') return undefined;
   const text = value.trim();
   if (text === '') return undefined;
   // Unity editor versions carry a build channel suffix: 6000.3.14f1, 2022.3.10b5.
   const match = /^v?(\d+(?:\.\d+)*)(?:[-+]([0-9A-Za-z.-]+))?$/.exec(text.replace(/[fabp]\d+$/, ''));
   if (match === null) return undefined;
-  const segments = match[1].split('.').map((part) => Number(part));
+  const segments = (match[1] ?? '').split('.').map((part) => Number(part));
   if (segments.some((segment) => !Number.isInteger(segment) || segment < 0)) return undefined;
   return { segments, prerelease: match[2] };
 }
 
 /** Compare two parsed versions, padding the shorter one with zeros. */
-export function compareVersions(left, right) {
+export function compareVersions(left: ParsedVersion, right: ParsedVersion): number {
   const length = Math.max(left.segments.length, right.segments.length);
   for (let index = 0; index < length; index += 1) {
     const a = left.segments[index] ?? 0;
@@ -53,21 +59,15 @@ export function compareVersions(left, right) {
   return left.prerelease < right.prerelease ? -1 : 1;
 }
 
-/**
- * Resolve one comparator such as `>=6000.6` against a version.
- *
- * @param {string} token - a single comparator.
- * @param {{ segments: number[], prerelease?: string }} version - candidate version.
- * @returns {boolean | undefined} the verdict, or `undefined` when the token cannot be parsed.
- */
-function satisfiesToken(token, version) {
+/** Resolve one comparator such as `>=6000.6` against a version. */
+function satisfiesToken(token: string, version: ParsedVersion): boolean | undefined {
   const operator = OPERATORS.find((candidate) => token.startsWith(candidate)) ?? '';
   const body = (operator === '' ? token : token.slice(operator.length)).trim();
   if (body === '' || body === '*' || body === 'x') return true;
   const wanted = parseVersion(body);
   if (wanted === undefined) return undefined;
-  // A bare `6000.6` means "this release line", i.e. >=6000.6 <6000.7 for a two-part
-  // version; a full three-part version is an exact release.
+  // A bare `6000.6` means "this release line", i.e. >=6000.6 <6000.7; a full
+  // three-part version is an exact release.
   if (operator === '' || operator === '=') {
     if (wanted.segments.length < 3) return isWithinLine(version, wanted);
     return compareVersions(version, wanted) === 0;
@@ -91,7 +91,7 @@ function satisfiesToken(token, version) {
 }
 
 /** Whether a version sits inside the release line the wanted prefix names. */
-function isWithinLine(version, wanted) {
+function isWithinLine(version: ParsedVersion, wanted: ParsedVersion): boolean {
   for (let index = 0; index < wanted.segments.length; index += 1) {
     if ((version.segments[index] ?? 0) !== wanted.segments[index]) return false;
   }
@@ -99,28 +99,28 @@ function isWithinLine(version, wanted) {
 }
 
 /** `^1.2.3` allows `<2.0.0`; `^0.2.3` allows `<0.3.0`. */
-function caretUpperBound(wanted) {
+function caretUpperBound(wanted: ParsedVersion): ParsedVersion {
   const major = wanted.segments[0] ?? 0;
   const minor = wanted.segments[1] ?? 0;
-  return major > 0 ? parseVersion(`${major + 1}.0.0`) : parseVersion(`0.${minor + 1}.0`);
+  return (major > 0 ? parseVersion(`${major + 1}.0.0`) : parseVersion(`0.${minor + 1}.0`)) as ParsedVersion;
 }
 
 /** `~1.2.3` allows `<1.3.0`. */
-function tildeUpperBound(wanted) {
+function tildeUpperBound(wanted: ParsedVersion): ParsedVersion {
   const major = wanted.segments[0] ?? 0;
   const minor = wanted.segments[1] ?? 0;
-  return parseVersion(`${major}.${minor + 1}.0`);
+  return parseVersion(`${major}.${minor + 1}.0`) as ParsedVersion;
 }
 
 /**
  * Check a range against a version.
  *
- * @param {unknown} rawRange - range text, for example `>=6000.6`.
- * @param {unknown} rawVersion - version text, for example `6000.3.14f1`.
- * @returns {boolean | undefined} `undefined` when either side cannot be parsed,
- *   so the caller can treat the answer as unknown instead of hiding a skill.
+ * @param rawRange - range text, for example `>=6000.6`.
+ * @param rawVersion - version text, for example `6000.3.14f1`.
+ * @returns `undefined` when either side cannot be parsed, so the caller can treat
+ *   the answer as unknown instead of hiding a skill.
  */
-export function satisfiesRange(rawRange, rawVersion) {
+export function satisfiesRange(rawRange: unknown, rawVersion: unknown): boolean | undefined {
   if (typeof rawRange !== 'string' || rawRange.trim() === '') return true;
   if (rawVersion === undefined || rawVersion === null) return undefined;
   const version = parseVersion(rawVersion);
@@ -142,57 +142,58 @@ export function satisfiesRange(rawRange, rawVersion) {
 /**
  * Read the requirement declarations out of parsed skill frontmatter.
  *
- * @param {Record<string, unknown>} data - parsed SKILL.md frontmatter.
- * @returns {{ editor?: string, packages: Array<{ name: string, range: string }> }} requirements.
+ * @param data - parsed SKILL.md frontmatter.
+ * @returns the declared editor range and package ranges.
  */
-export function readRequirements(data) {
-  const editor =
-    typeof data.required_editor_version === 'string'
-      ? data.required_editor_version
-      : typeof data.required_editor_version === 'number'
-        ? String(data.required_editor_version)
-        : undefined;
-  const packages = [];
+export function readRequirements(data: Readonly<Record<string, unknown>>): SkillRequirements {
+  const rawEditor = data.required_editor_version;
+  const editor = typeof rawEditor === 'string' ? rawEditor : typeof rawEditor === 'number' ? String(rawEditor) : undefined;
+  const packages: Array<{ name: string; range: string }> = [];
   const declared = data.required_packages;
   if (typeof declared === 'object' && declared !== null && !Array.isArray(declared)) {
-    for (const [name, range] of Object.entries(declared)) {
-      if (typeof range === 'string' || typeof range === 'number') {
-        packages.push({ name, range: String(range) });
-      } else if (range === null || range === '') {
-        packages.push({ name, range: '' });
-      }
+    for (const [name, range] of Object.entries(declared as Record<string, unknown>)) {
+      if (typeof range === 'string' || typeof range === 'number') packages.push({ name, range: String(range) });
+      else if (range === null || range === '') packages.push({ name, range: '' });
     }
   }
   return { ...(editor === undefined ? {} : { editor }), packages };
 }
 
+/** Project facts that requirement checks depend on. */
+export interface RequirementFacts {
+  readonly editorVersion?: string;
+  readonly packages?: Map<string, string>;
+}
+
+/** The outcome of evaluating one skill's requirements. */
+export interface RequirementVerdict {
+  readonly applicable: boolean;
+  readonly unknown: boolean;
+  readonly reasons: readonly string[];
+}
+
 /**
  * Evaluate requirements against project facts.
  *
- * @param {{ editor?: string, packages: Array<{ name: string, range: string }> }} requirements
- *   declarations from {@link readRequirements}.
- * @param {{ editorVersion?: string, packages?: Map<string, string> } | undefined} facts
- *   detected project facts; `undefined` means no project was detected.
- * @returns {{
- *   applicable: boolean,
- *   unknown: boolean,
- *   reasons: string[],
- * }} a decision; `applicable` stays true when the answer is only unknown.
+ * @param requirements - declarations from {@link readRequirements}.
+ * @param facts - detected project facts; `undefined` means no project was detected.
+ * @returns the decision; `applicable` stays true when the answer is only unknown.
  */
-export function evaluateRequirements(requirements, facts) {
-  const reasons = [];
+export function evaluateRequirements(requirements: SkillRequirements, facts: RequirementFacts | undefined): RequirementVerdict {
+  const reasons: string[] = [];
   let unknown = false;
-  const editorRange = requirements.editor;
-  if (editorRange !== undefined) {
+  if (requirements.editor !== undefined) {
     if (facts?.editorVersion === undefined) {
       unknown = true;
-      reasons.push(`cannot check Unity ${editorRange}: editor version unknown`);
+      reasons.push(`cannot check Unity ${requirements.editor}: editor version unknown`);
     } else {
-      const verdict = satisfiesRange(editorRange, facts.editorVersion);
-      if (verdict === false) return { applicable: false, unknown, reasons: [`needs Unity ${editorRange} (project ${facts.editorVersion})`] };
+      const verdict = satisfiesRange(requirements.editor, facts.editorVersion);
+      if (verdict === false) {
+        return { applicable: false, unknown, reasons: [`needs Unity ${requirements.editor} (project ${facts.editorVersion})`] };
+      }
       if (verdict === undefined) {
         unknown = true;
-        reasons.push(`cannot check Unity ${editorRange} against ${facts.editorVersion}`);
+        reasons.push(`cannot check Unity ${requirements.editor} against ${facts.editorVersion}`);
       }
     }
   }
@@ -204,7 +205,11 @@ export function evaluateRequirements(requirements, facts) {
     }
     const installed = facts.packages.get(requirement.name);
     if (installed === undefined) {
-      return { applicable: false, unknown, reasons: [`missing package ${requirement.name}${requirement.range === '' ? '' : ` ${requirement.range}`}`] };
+      return {
+        applicable: false,
+        unknown,
+        reasons: [`missing package ${requirement.name}${requirement.range === '' ? '' : ` ${requirement.range}`}`],
+      };
     }
     const verdict = satisfiesRange(requirement.range, installed);
     if (verdict === false) {

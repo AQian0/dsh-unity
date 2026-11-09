@@ -13,7 +13,7 @@
  *   model's catalog while staying reachable by explicit name;
  * - the detected project facts are contributed to the agent's runtime context, so
  *   the model states the editor version and package situation instead of guessing;
- * - the skill directory is watched, and a frontmatter or membership change
+ * - the skill directory is watched, and a frontmatter membership change
  *   invalidates the cached catalog instead of requiring a restart.
  *
  * @module @aqian0/dsh-unity
@@ -22,9 +22,12 @@
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createAgentRegistry, createGlobalProvider } from './lib/registry.js';
-import { createParseCache } from './lib/skills.js';
-import { startSkillsWatcher } from './lib/watch.js';
+import { createAgentRegistry, createGlobalProvider, serviceOf } from './registry.ts';
+import type { RegistrySettings } from './registry.ts';
+import { createParseCache } from './skills.ts';
+import type { ParseCache } from './skills.ts';
+import { startSkillsWatcher } from './watch.ts';
+import type { AgentLike, AgentsService, PluginContext } from './harness.ts';
 
 /** Loader row name. */
 export const name = 'unity-skills';
@@ -48,30 +51,54 @@ export const DEFAULT_RANK = 240;
  * editor from the CLI, and managing packages are all meaningful before a project
  * exists.
  */
-export const DEFAULT_WORKSPACE_SKILLS = ['new-unity-project', 'unity-cli', 'unity-package-management'];
+export const DEFAULT_WORKSPACE_SKILLS: readonly string[] = [
+  'new-unity-project',
+  'unity-cli',
+  'unity-package-management',
+];
 
 /** Provider name reserved by the registry for per-agent runtime registrations. */
 const RESERVED_PROVIDER = 'runtime';
 
 /** Directory of this package, used to locate the packaged skills. */
-const PACKAGE_DIR = fileURLToPath(new URL('.', import.meta.url));
+const PACKAGE_DIR = fileURLToPath(new URL('../', import.meta.url));
+
+/** Row config accepted from the loader patch. */
+export interface PluginConfig {
+  readonly providerName?: string;
+  readonly rank?: number;
+  readonly skillDir?: string;
+  readonly exclude?: readonly string[];
+  readonly workspaceSkills?: readonly string[];
+  readonly gateByProject?: boolean;
+  readonly enforceRequirements?: boolean;
+  readonly injectContext?: boolean;
+  readonly watchSkills?: boolean;
+  readonly respectProjectRoots?: boolean;
+}
+
+/** Normalized settings, with the parse cache attached by {@link apply}. */
+export interface ResolvedSettings extends RegistrySettings {
+  readonly watchSkills: boolean;
+  parseCache: ParseCache | undefined;
+}
 
 /**
  * Register the Unity skill provider on `ctx.skills`.
  *
- * @param {object} ctx - Cordis plugin context; `skills` is injected.
- * @param {object} [config] - row config from the loader patch.
+ * @param ctx - Cordis plugin context; `skills` is injected.
+ * @param config - row config from the loader patch.
  */
-export function apply(ctx, config = {}) {
+export function apply(ctx: PluginContext, config: PluginConfig = {}): void {
   const settings = resolveSettings(config);
   settings.parseCache = createParseCache();
   const registry = createAgentRegistry({ ctx, settings });
 
-  const disposers = [];
+  const disposers: Array<() => void> = [];
   let fallbackRegistered = false;
 
   /** Serve one global provider when this context cannot register per agent. */
-  const ensureFallback = () => {
+  const ensureFallback = (): void => {
     if (fallbackRegistered) return;
     fallbackRegistered = true;
     ctx.skills.registerProvider(() => createGlobalProvider({ settings, registry }));
@@ -80,24 +107,25 @@ export function apply(ctx, config = {}) {
     );
   };
 
-  const onCreated = async (payload) => {
+  const onCreated = async (payload: unknown): Promise<void> => {
+    const agent = (payload as { agent?: AgentLike } | undefined)?.agent;
     try {
-      const result = await registry.add(payload?.agent);
+      const result = await registry.add(agent);
       if (result === 'unavailable') ensureFallback();
     } catch (error) {
       ctx.logger.warn(`unity skills: agent registration failed: ${String(error)}`);
     }
   };
 
-  const agents = ctx.get('agents');
+  const agents = serviceOf<AgentsService>(ctx, 'agents');
   if (agents === undefined) {
     ensureFallback();
   } else {
-    disposers.push(ctx.on('agent/created', onCreated));
-    disposers.push(ctx.on('agent/disposed', (payload) => registry.remove(payload?.agent)));
-    for (const agent of agents.list()) {
-      void onCreated({ agent });
-    }
+    disposers.push(
+      ctx.on('agent/created', (payload) => onCreated(payload)),
+      ctx.on('agent/disposed', (payload) => registry.remove((payload as { agent?: AgentLike } | undefined)?.agent)),
+    );
+    for (const agent of agents.list()) void onCreated({ agent });
   }
 
   if (settings.watchSkills) {
@@ -106,7 +134,7 @@ export function apply(ctx, config = {}) {
         dir: settings.skillDir,
         logger: ctx.logger,
         onChange: () => {
-          settings.parseCache.clear();
+          settings.parseCache?.clear();
           registry.invalidateAll();
         },
       }),
@@ -131,11 +159,11 @@ export function apply(ctx, config = {}) {
 /**
  * Validate row config into normalized settings.
  *
- * @param {object} config - row config from the loader patch.
- * @returns {object} normalized settings.
+ * @param config - row config from the loader patch.
+ * @returns normalized settings.
  * @throws {TypeError} when a field is present but unusable.
  */
-export function resolveSettings(config) {
+export function resolveSettings(config: PluginConfig): ResolvedSettings {
   const providerName = config.providerName ?? DEFAULT_PROVIDER_NAME;
   if (typeof providerName !== 'string' || providerName.trim() === '') {
     throw new TypeError('unity-skills: providerName must be a non-empty string');
@@ -156,6 +184,7 @@ export function resolveSettings(config) {
   return {
     providerName,
     rank,
+    source: 'unity',
     skillDir: resolve(skillDirConfig),
     exclude: new Set(exclude ?? []),
     workspaceSkills: new Set(workspaceSkills),
@@ -169,7 +198,7 @@ export function resolveSettings(config) {
 }
 
 /** Read an optional string-array field. */
-function readStringArray(value, field) {
+function readStringArray(value: readonly string[] | undefined, field: string): readonly string[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || entry.trim() === '')) {
     throw new TypeError(`unity-skills: ${field} must be an array of non-empty strings`);
@@ -178,7 +207,7 @@ function readStringArray(value, field) {
 }
 
 /** Read an optional boolean field. */
-function readBoolean(value, field, fallback) {
+function readBoolean(value: boolean | undefined, field: string, fallback: boolean): boolean {
   if (value === undefined) return fallback;
   if (typeof value !== 'boolean') throw new TypeError(`unity-skills: ${field} must be a boolean`);
   return value;

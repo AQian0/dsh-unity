@@ -7,7 +7,16 @@ import {
   parseVersion,
   readRequirements,
   satisfiesRange,
-} from '../lib/requirements.js';
+} from '../src/requirements.ts';
+import type { ParsedVersion } from '../src/requirements.ts';
+import type { SkillRequirements } from '../src/harness.ts';
+
+/** Parse a version the test expects to be valid. */
+function version(text: string): ParsedVersion {
+  const parsed = parseVersion(text);
+  assert.ok(parsed, text);
+  return parsed;
+}
 
 test('Unity editor versions parse with their build suffix stripped', () => {
   assert.deepEqual(parseVersion('6000.3.14f1'), { segments: [6000, 3, 14], prerelease: undefined });
@@ -21,12 +30,12 @@ test('Unity editor versions parse with their build suffix stripped', () => {
 });
 
 test('versions compare segment-wise and release beats prerelease', () => {
-  const a = parseVersion('6000.3.14');
-  const b = parseVersion('6000.6.0');
+  const a = version('6000.3.14');
+  const b = version('6000.6.0');
   assert.equal(compareVersions(a, b), -1);
   assert.equal(compareVersions(b, a), 1);
-  assert.equal(compareVersions(parseVersion('6000.3'), parseVersion('6000.3.0')), 0);
-  assert.equal(compareVersions(parseVersion('1.0.0'), parseVersion('1.0.0-preview')), 1);
+  assert.equal(compareVersions(version('6000.3'), version('6000.3.0')), 0);
+  assert.equal(compareVersions(version('1.0.0'), version('1.0.0-preview')), 1);
 });
 
 test('editor ranges accept the shapes Unity skills use', () => {
@@ -71,14 +80,14 @@ test('requirements are read from the frontmatter shapes Unity uses', () => {
 });
 
 test('evaluateRequirements hides on a real mismatch and stays open on unknown', () => {
-  const facts = {
+  const facts: { editorVersion?: string; packages?: Map<string, string> } = {
     editorVersion: '6000.3.14f1',
     packages: new Map([
       ['com.unity.render-pipelines.universal', '14.0.11'],
     ]),
   };
 
-  const unmetEditor = evaluateRequirements({ editor: '>=6000.6', packages: [] }, facts);
+  const unmetEditor = evaluateRequirements({ editor: '>=6000.6', packages: [] } satisfies SkillRequirements, facts);
   assert.equal(unmetEditor.applicable, false);
   assert.match(unmetEditor.reasons[0], /needs Unity >=6000\.6 \(project 6000\.3\.14f1\)/);
 

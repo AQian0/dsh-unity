@@ -8,9 +8,7 @@ import {
   parseSkillMarkdown,
   parseYamlSubset,
   splitFrontmatter,
-} from '../lib/frontmatter.js';
-
-const document = (yaml, body = 'Body text.') => `---\n${yaml}\n---\n${body}\n`;
+} from '../src/frontmatter.ts';
 
 test('plain, quoted, and core-schema scalars', () => {
   const data = parseYamlSubset(

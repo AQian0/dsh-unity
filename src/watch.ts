@@ -19,25 +19,30 @@ import { watch } from 'node:fs';
 /** Default coalescing window for filesystem bursts. */
 const DEFAULT_DEBOUNCE_MS = 200;
 
+/** Options for {@link startSkillsWatcher}. */
+export interface WatcherOptions {
+  readonly dir: string;
+  readonly onChange: () => void;
+  readonly logger: { warn(message: string): void };
+  readonly debounceMs?: number;
+}
+
 /**
  * Start watching a skill directory for catalog-relevant changes.
  *
  * Only `SKILL.md` additions, removals, and edits matter: resource files below a
  * skill are read on demand and do not change discovery.
  *
- * @param {object} options - watcher options.
- * @param {string} options.dir - skill directory to watch.
- * @param {() => void} options.onChange - called after a debounced change.
- * @param {{ warn: (message: string) => void }} options.logger - warning sink.
- * @param {number} [options.debounceMs] - coalescing window.
- * @returns {() => void} disposer that stops the watcher.
+ * @param options - watcher options.
+ * @returns a disposer that stops the watcher.
  */
-export function startSkillsWatcher({ dir, onChange, logger, debounceMs = DEFAULT_DEBOUNCE_MS }) {
-  let timer;
-  let watcher;
+export function startSkillsWatcher(options: WatcherOptions): () => void {
+  const { dir, onChange, logger, debounceMs = DEFAULT_DEBOUNCE_MS } = options;
+  let timer: NodeJS.Timeout | undefined;
+  let watcher: ReturnType<typeof watch> | undefined;
   let disposed = false;
 
-  const schedule = () => {
+  const schedule = (): void => {
     if (disposed) return;
     if (timer !== undefined) clearTimeout(timer);
     timer = setTimeout(() => {
@@ -65,12 +70,12 @@ export function startSkillsWatcher({ dir, onChange, logger, debounceMs = DEFAULT
     return () => {};
   }
 
-  watcher.on('error', (error) => {
+  watcher.on('error', (error: unknown) => {
     logger.warn(`unity skills: skill watcher stopped on ${dir}: ${String(error)}`);
     dispose();
   });
 
-  function dispose() {
+  function dispose(): void {
     if (disposed) return;
     disposed = true;
     if (timer !== undefined) clearTimeout(timer);
