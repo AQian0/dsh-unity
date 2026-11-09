@@ -3,17 +3,10 @@
   "version": "0.1.0",
   "description": "Unity game-development, monetization, and performance skills for DeepSeek Harness: 34 skills that load on demand, packaged as a DSH bundle.",
   "keywords": [
-    "deepseek-harness",
     "dsh-plugin",
     "unity",
     "gamedev",
-    "game-development",
-    "skills",
-    "ui-toolkit",
-    "ugui",
-    "in-app-purchases",
-    "multiplayer",
-    "shader-graph"
+    "game-development"
   ],
   "license": "(MIT AND ISC AND LicenseRef-Unity-Companion-License)",
   "author": "AQian",
