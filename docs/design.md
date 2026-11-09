@@ -2,14 +2,14 @@
 
 `@aqian0/dsh-unity` 把 34 个 Unity 技能作为 DSH 技能提供出去。它与"把 Markdown 目录挂进技能注册表"的区别在于**在哪注册**和**怎么服务**：注册按 agent 进行，目录按会话所在工程筛选，工程事实写进该会话的运行时上下文，技能目录的变化实时刷新。本文记录这套设计。
 
-代码是唯一事实来源：`index.js`、`lib/registry.js`、`lib/project.js`、`lib/gating.js`、`lib/requirements.js`、`lib/watch.js`、`lib/skills.js`、`lib/frontmatter.js`；本文与代码冲突时以代码为准。
+代码是唯一事实来源：`src/index.ts`、`src/registry.ts`、`src/project.ts`、`src/gating.ts`、`src/requirements.ts`、`src/watch.ts`、`src/skills.ts`、`src/frontmatter.ts`、`src/harness.ts`；本文与代码冲突时以代码为准。文中提到"代码"时指 `src/*.ts`，`lib/*.js` 只在讨论构建产物时出现。
 
 ## 1. 目标与范围
 
 - **一个包，34 个技能**：装进 profile 后，技能出现在会话目录里，按需加载。
 - **目录跟随会话**：不在 Unity 工程里只保留起步技能；在工程里按 Editor 版本与已装包筛掉不适用的技能。
 - **事实交给模型**：把检测到的工程事实与"哪些技能被隐藏、为什么"写进运行时上下文，让模型陈述而不是猜。
-- **零运行时依赖**：只用 Node 内置模块（`node:fs`、`node:path`、`node:child_process` 经服务封装），没有安装期构建。
+- **零运行时依赖**：只用 Node 内置模块（`node:fs`、`node:path`、`node:child_process` 经服务封装）；构建只在仓库侧发生（`npm run build` / `prepack` 产出 `lib/`），安装已发布的包时不再编译，也没有第三方安装依赖。
 - **可卸载**：所有监听、watcher 与注册都在 `ctx.effect` 里，fiber 释放时统一注销。
 
 不在范围内：技能正文怎么写、什么时候该用哪个技能（由模型按描述判断），以及技能的版本管理。
@@ -30,9 +30,9 @@
 | `cordis.patch.yml` | 只插入一个 Host 行 `unity-skills`（`config: {}`） |
 | `skills/` | 34 个技能目录，每个是 `<name>/SKILL.md` + 可选的 `references/`、`scripts/`、`resources/` |
 
-**构建形态**与官方插件包一致：仓库里是 `src/` 下的 TypeScript，`npm run build`（`tsc -p tsconfig.json`）产出 `lib/*.js` 与 `lib/types/*.d.ts`，`prepack` 会再跑一次构建，因此 `npm pack` 出来的 tarball 只有编译产物、`cordis.patch.yml`、`locale/`、`skills/` 与图标。`lib/` 被 `.gitignore` 忽略，不随仓库提交；按目录安装前需要先构建。`tsconfig.test.json` 只做类型检查（`src/`、`test/`、`scripts/`），测试与脚本由 Node 内置的类型剥离直接运行 `.ts`。
+**构建形态**与官方插件包一致：仓库里是 `src/` 下的 TypeScript，`npm run build`（`tsc -p tsconfig.json`）产出 `lib/*.js` 与 `lib/types/*.d.ts`，`prepack` 会再跑一次构建，因此 `npm pack` 出来的 tarball 只有编译产物、`cordis.patch.yml`、`locale/`、`skills/`、图标，以及 `README.md`、`docs/`、`CHANGELOG.md` 与 `LICENSE.md`、`LICENSE-UNITY-COMPANION.md`、`NOTICE.md`。`lib/` 被 `.gitignore` 忽略，不随仓库提交；按目录安装前需要先构建。`tsconfig.test.json` 只做类型检查（`src/`、`test/`、`scripts/`），测试与脚本由 Node 内置的类型剥离直接运行 `.ts`（`engines` 要求 Node.js >=22.18）。
 
-此外，`locale/en.json` / `locale/zh.json` 与 `icon.svg` 提供插件页的标题、描述与图标，`LICENSE.md` 随包发布；`scripts/validate-skills.ts` 与 `test/*.test.ts` 是开发期工具（见 7.3 与第 9 节）。
+此外，`locale/en.json` / `locale/zh.json` 与 `icon.svg` 提供插件页的标题、描述与图标。许可证按路径划分：整合代码（`src/`、`test/`、`scripts/`、配置与文档）是 MIT，全文见 `LICENSE.md`；`skills/` 下的技能内容版权属于 Unity Technologies，按 Unity Companion License 使用，全文见 `LICENSE-UNITY-COMPANION.md`；各覆盖哪些路径由 `NOTICE.md` 记录。这些文件与 `CHANGELOG.md` 一起随包发布。`scripts/validate-skills.ts` 与 `test/*.test.ts` 是开发期工具（见 7.3 与第 9 节）。
 
 ## 3. 为什么用 provider，为什么必须按 agent 注册
 
@@ -61,7 +61,7 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 1. **只在全局层注册会输掉同名技能**：预设层里挂着 `skill-filesystem`，它扫描到的同名技能属于更近的层，"最近的层胜出"让全局 provider 的 rank 形同虚设。
 2. **全局注册无法按工程变化**：一份全局目录要被所有会话共用，不能按某个会话的 Editor 版本和包列表裁剪。
 
-所以 `apply()` 不做"注册一次"，而是监听 agent 生命周期，拿到每个 agent 后经 `agent.ctx` 把 provider 注册进**该 agent 自己的层**。这样它在该层里赢得自己拥有的名字，目录也可以按这个 agent 的工程计算。本机实测：在 `~/.agents/skills` 放一份同名 `unity-pipeline`，插件的版本仍然胜出。
+所以 `apply()` 不做"注册一次"，而是监听 agent 生命周期，拿到每个 agent 后经 `agent.ctx` 把 provider 注册进**该 agent 自己的层**。这样它在该层里赢得自己拥有的名字，目录也可以按这个 agent 的工程计算。这条胜负关系由层的位置决定，不靠 `rank` 或运气：插件注册在 agent 自己的层，比全局层和外部技能根都近，所以外部根里的同名副本不会盖掉插件的版本。
 
 ### 3.3 回退路径
 
@@ -84,10 +84,10 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 ### 4.2 每个 agent 的注册状态
 
-`lib/registry.js` 为每个 agent 保存：会话 id、agent 引用、provider 注册的 `control`、最近一次的工程事实与隐藏列表、`factsKey`、以及两个 disposer（provider 注册和上下文条目）。
+`src/registry.ts` 为每个 agent 保存：会话 id、agent 引用、provider 注册的 `control`、最近一次的工程事实与隐藏列表、`factsKey`、以及两个 disposer（provider 注册和上下文条目）。
 
 - **解析工作目录**：优先 `ctx.workingDirectory.get(session)`，退回 `session.header.cwd`；每次 `list()` 都重新解析，所以会话切换工作目录会立即重新门控。
-- **注册**：`agent.ctx.skills.registerProvider(...)`。拿不到 `skills` 时 `add()` 返回 `unavailable`，由 `index.js` 触发一次全局回退。
+- **注册**：`agent.ctx.skills.registerProvider(...)`。拿不到 `skills` 时 `add()` 返回 `unavailable`，由 `src/index.ts` 触发一次全局回退。
 - **上下文**：若 `injectContext` 且 `agent.ctx.systemPrompt` 可用，注册 `{ name: 'unity:project', order: 180, text: () => renderContext(...) ?? '' }`，每次组装提示词时重算。
 - **预热**：注册完成后立刻读一次工程事实，让第一次提示词组装就带上上下文。
 - **注销**：`agent/disposed` 时释放该 agent 的 provider 注册与上下文条目；fiber 释放时释放全部监听、watcher 与注册。
@@ -144,7 +144,7 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 | `shader-graph-create-custom-node` | `com.unity.shadergraph >=17.5.0` |
 | `urp-postprocessing` | `com.unity.render-pipelines.universal >=14.0.0` |
 
-`lib/requirements.js` 只支持这些技能用到的形状：算子 `>=`、`>`、`<=`、`<`、`=`、`^`、`~`，逗号或空格分隔多个比较，算子与版本之间可以有空格。两段版本（`6000.6`）表示一条发布线（`>=6000.6 <6000.7`），三段版本是精确版本。Editor 版本会去掉 `f1`/`b5` 这类构建通道后缀再比较；包版本保留预发布标签，且发布版高于预发布版。
+`src/requirements.ts` 只支持这些技能用到的形状：算子 `>=`、`>`、`<=`、`<`、`=`、`^`、`~`，逗号或空格分隔多个比较，算子与版本之间可以有空格。两段版本（`6000.6`）表示一条发布线（`>=6000.6 <6000.7`），三段版本是精确版本。Editor 版本会去掉 `f1`/`b5` 这类构建通道后缀再比较；包版本保留预发布标签，且发布版高于预发布版。
 
 求值结果有三种，而不是两种：
 
@@ -175,7 +175,7 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 ### 5.5 解析器的边界
 
-`lib/frontmatter.js` 是一个自包含的 YAML 子集读取器，覆盖这些技能用到的语法：顶层 `key: value` 与多层嵌套块映射、块序列与流序列、单/双引号与纯标量、字面块（`|`、`|-`、`|+`）与折叠块（`>`、`>-`、`>+`）、整行注释与纯标量后的行内注释；标量按 YAML 1.2 core schema 解析。
+`src/frontmatter.ts` 是一个自包含的 YAML 子集读取器，覆盖这些技能用到的语法：顶层 `key: value` 与多层嵌套块映射、块序列与流序列、单/双引号与纯标量、字面块（`|`、`|-`、`|+`）与折叠块（`>`、`>-`、`>+`）、整行注释与纯标量后的行内注释；标量按 YAML 1.2 core schema 解析。
 
 不支持的语法（锚点/别名、多文档、复杂键、tab 缩进）会抛 `SyntaxError`：发现阶段由 `list()` 捕获、跳过该技能并告警；加载阶段直接抛给调用方，不在 provider 里猜值。包不能带 YAML 依赖，而"猜错一个描述"比"少一个技能"更糟。
 
@@ -235,7 +235,7 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 ### 7.3 校验脚本
 
-`scripts/validate-skills.mjs` 走插件的真实代码路径（`createUnitySkillReader` 的 `list()`/`load()`、`parseSkillMarkdown`）。
+`scripts/validate-skills.ts` 走插件的真实代码路径（`src/skills.ts` 里 `createUnitySkillReader` 的 `list()`/`load()`、`src/frontmatter.ts` 的 `parseSkillMarkdown`）。
 
 | 场景 | 行为 |
 | --- | --- |
@@ -258,31 +258,36 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 `factsKey` 由工程根、Editor 版本、渲染管线、Editor 开关状态和包列表拼成。`list()` 每次都重新取事实；键变了就排一个 `queueMicrotask` 调 `control.invalidate()`，让下一次快照按新事实重新门控，而不是等重启。
 
-`lib/watch.js` 用 `fs.watch(dir, { recursive: true, persistent: false })` 监视 `skills/`，只对路径以 `SKILL.md` 结尾的事件（或拿不到文件名的整目录事件）反应，按 200ms 防抖合并，随后 `parseCache.clear()` 并让每个 agent 的 `control.invalidate()`。资源文件（`references/` 等）不参与发现，靠加载时读取，不需要刷新。
+`src/watch.ts` 用 `fs.watch(dir, { recursive: true, persistent: false })` 监视 `skills/`，只对路径以 `SKILL.md` 结尾的事件（或拿不到文件名的整目录事件）反应，按 200ms 防抖合并，随后 `parseCache.clear()` 并让每个 agent 的 `control.invalidate()`。资源文件（`references/` 等）不参与发现，靠加载时读取，不需要刷新。
 
 仍需重启的情况：
 
-- 改了 `index.js` 或 `lib/` 里的代码（进程内模块）；
+- 改了 `src/` 里的代码（进程内模块；改完要先 `npm run build`，再重启 DSH 才会加载新的 `lib/`）；
 - watcher 起不来或被关闭（退回重启时发现）；
 - 替换已安装的包（换 checkout）。
 
-## 9. 验证记录
+## 9. 验证方式
 
-本轮实测（2026-11-09）：
+以下命令都在仓库根目录执行，对任意 checkout 都适用：
 
-- `npm test`：**53/53 通过**（`node --test "test/**/*.test.ts"`，直接运行 TypeScript），覆盖 frontmatter 解析、需求解析与求值、工程检测、门控、per-agent 注册与生命周期、watcher 注销、catalog 装配。
-- `npm run typecheck`：`tsc -p tsconfig.test.json` 对 `src/`、`test/`、`scripts/` 零错误（`strict` + `erasableSyntaxOnly`）。
-- `npm run build`：`src/` → `lib/*.js` + `lib/types/*.d.ts`；构建产物加载后 provider 正常 `list()` 出 34 个候选。
-- `npm run validate`：**PASS**，34/34 技能通过、34 个候选全部 `list()` 且 `load()` 成功、228/228 技能内资源引用在磁盘上解析到、0 failures、0 warnings；最大 `SKILL.md` 11969 字节。
-- 安装进 desktop profile：`plugin_manager install_bundle` 返回 `application: applied`。
-- 非 Unity 工作目录：会话技能目录里恰好 3 个技能（`new-unity-project`、`unity-cli`、`unity-package-management`）。
-- 切换到 fixture 工程（Editor `6000.3.14f1`，manifest 含 URP 与 uGUI）：其余技能出现，并恰好隐藏 `asset-transformer-toolkit`、`build-gtk`、`create-tile-palette-or-rule-tiles`、`setup-vivox-voice-chat`、`shader-graph-create-custom-node`；提示词里带着 `Unity project: …` 与这些技能的原因。`fix-3d-physics-collisions`（需要 `>=6000.3`）与 `urp-postprocessing`（需要 URP）保持可见，因为工程满足它们。
-- 实时刷新：在 `skills/` 里临时加一个技能，目录里出现；删除后又消失——两次都不需要重启。
-- 层边界：在 `~/.agents/skills` 放一份同名 `unity-pipeline`，插件的版本仍然胜出（agent 层胜出）。
+```bash
+npm run build       # src/ → lib/*.js + lib/types/*.d.ts（发布产物）
+npm run typecheck   # tsc -p tsconfig.test.json 检查 src/、test/、scripts/
+npm test            # 单元测试，直接运行 TypeScript（Node 内置类型剥离）
+npm run validate    # 技能合规性：结构、frontmatter、需求字段、正文体积、资源引用
+npm pack --dry-run  # 打包清单：确认 lib/、skills/、文档与许可证文件都在包里
+```
+
+- **`npm run build` / `npm run typecheck`**：TypeScript 无错误；构建产物加载后 provider 能 `list()` 出全部技能。
+- **`npm test`**：覆盖 frontmatter 解析、需求解析与求值、工程检测、门控、per-agent 注册与生命周期、watcher 注销与 catalog 装配。
+- **`npm run validate`**：技能结构与 frontmatter 合规、`required_*` 可解析、正文体积在阈值内、技能内资源引用都能在磁盘上解析；失败退出码 1，警告不影响退出码。
+- **`npm pack --dry-run`**：发布前核对 tarball 内容与 `files` 字段一致。
+
+技能在真实会话里的表现（非 Unity 目录下可见几条、进入工程后隐藏哪些、`skills/` 变更是否即时生效）按第 5、7、8 节的规则观察，本文不记录某台机器上的运行结果。
 
 ## 10. 已知缺口
 
-- **正文体积靠约定与告警维持**：载入的 `SKILL.md` 是工具结果，压缩在超过 8192 字符时会裁剪，所以技能采用“`SKILL.md` 只做路由 + 细节放 `references/`”的结构。当前 34 个全部 ≤ 12 KB（最大 11969 字节），校验脚本在超过 16384 字节时告警；新增技能若把细节写回 `SKILL.md`，长会话里会被裁断。
+- **正文体积靠约定与告警维持**：载入的 `SKILL.md` 是工具结果，压缩在超过 8192 字符时会裁剪，所以技能采用“`SKILL.md` 只做路由 + 细节放 `references/`”的结构。34 个 `SKILL.md` 都按这个结构保持在远小于 16384 字节的规模，校验脚本在超过 16384 字节时告警；新增技能若把细节写回 `SKILL.md`，长会话里会被裁断。
 - **watcher 的边界**：只关心 `SKILL.md` 的增删改；`fs.watch` 在部分平台/沙箱不可用或会停止，此时只能退回重启时发现（各记录一条警告）。防抖窗口 200ms，突发写入会被合并。
 - **回退路径更弱**：`agent.ctx` 够不到 `skills` 时只有一份全局 provider：没有 `unity:project` 上下文，同名的预设层技能重新胜出。
 - **非 Unity 会话只有 3 个技能**：这是默认的 `workspaceSkills`；需要更多就显式点名或用配置调整。

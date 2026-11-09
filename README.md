@@ -12,7 +12,7 @@
 - **需求被真正执行**：技能声明的 `required_editor_version` / `required_packages` 不满足时，该技能离开模型的目录，但仍可用 `/技能名` 显式载入；事实未知时不会隐藏任何技能。
 - **运行时上下文**：每个 agent 注入一条 `unity:project` 上下文，说明工程路径、Editor 版本、渲染管线、Editor/CLI 状态，以及本工程里被隐藏的技能与原因。
 - **实时刷新**：`skills/` 被 `fs.watch` 监视；新增、删除或改 `SKILL.md` 会清空解析缓存并让各 agent 的目录缓存失效，不用重启。
-- **一行插件、零依赖**：`cordis.patch.yml` 只插入一个 Host 行 `unity-skills`；只用 Node 内置模块，没有构建步骤。
+- **一行插件、零运行时依赖**：`cordis.patch.yml` 只插入一个 Host 行 `unity-skills`；运行时只用 Node 内置模块，不依赖任何第三方包。仓库里的源码是 TypeScript，`npm pack`（`prepack`）时编译成 `lib/` 发布，因此按目录安装前要先构建一次，见[安装](#安装)。
 - **设计说明**：为什么必须按 agent 注册、门控与降级的取舍，见 [docs/design.md](./docs/design.md)。
 
 > 这些技能会直接改你的 Unity 工程（脚本、场景、资产）；Unity CLI 可用时还会在打开的 Editor 里执行 C#。请先把工程纳入版本控制，再让 agent 动手。
@@ -78,7 +78,7 @@
 
 ## 安装
 
-**前置**：一个可用的 DSH profile（Web / Desktop / CLI 均可），以及 Node.js 24+ 与 npm。源码是 TypeScript，包入口是编译后的 `lib/index.js`（与官方插件包的发布形态一致：仓库里是 `src/`，`npm pack` 时才编译出 `lib/`），所以**按目录安装前要先构建一次**：
+**前置**：一个可用的 DSH profile（Web / Desktop / CLI 均可），以及 Node.js 22.18+（推荐 24 LTS，`npm test` 与 `npm run validate` 直接运行 `.ts`，依赖 Node 内置的类型剥离）与 npm。源码是 TypeScript，包入口是编译后的 `lib/index.js`（与官方插件包的发布形态一致：仓库里是 `src/`，`npm pack` 时才编译出 `lib/`），所以**按目录安装前要先构建一次**：
 
 ```bash
 npm install        # 只有 typescript 与 @types/node 两个开发依赖
@@ -87,10 +87,10 @@ npm run build      # src/ → lib/*.js + lib/types/*.d.ts（不入库）
 
 运行时不依赖任何第三方包；构建产物也不需要额外安装。
 
-**Web GUI**：打开左侧栏的「插件 / Plugins」页，安装时 spec 填本仓库的绝对路径：
+**Web GUI**：打开左侧栏的「插件 / Plugins」页，安装时 spec 填本仓库的绝对路径（换成你自己的 checkout 路径）：
 
 ```
-/Users/aqian/dsh-unity
+/path/to/dsh-unity
 ```
 
 Profile 的 Settings 里那份插件列表是只读的，安装与启停都在「插件」页。
@@ -99,7 +99,7 @@ Profile 的 Settings 里那份插件列表是只读的，安装与启停都在�
 
 ```
 action: install_bundle
-target: /Users/aqian/dsh-unity
+target: /path/to/dsh-unity
 ```
 
 这个操作要求 full access 或审批。
@@ -126,7 +126,7 @@ target: /Users/aqian/dsh-unity
 | "TextMeshPro 里中文显示成方框" | `optimize-text-mesh-pro`、`localize-unity-project` |
 | "帮我检查这个 ScriptableRendererFeature 的 Render Graph 问题" | `validate-urp-render-graph-renderer-feature` |
 
-也可以直接点名技能，例如"用 `unity-cli` 看看当前 Editor 连的是哪个工程"。被门控隐藏的技能不会出现在模型的目录里，但仍然可以这样按名字加载：本机在非 Unity 目录下只剩 3 个技能可见，其余 31 个都只能通过显式点名使用。
+也可以直接点名技能，例如"用 `unity-cli` 看看当前 Editor 连的是哪个工程"。被门控隐藏的技能不会出现在模型的目录里，但仍然可以这样按名字加载：不在 Unity 工程里时目录默认只剩 3 个起步技能（`workspaceSkills`），其余技能都只能通过显式点名使用。
 
 ## 配置
 
@@ -170,7 +170,7 @@ target: /Users/aqian/dsh-unity
 | 与同层 runtime 注册（rank 250）同名 | 同层内按 rank：本插件 240 排在前面 |
 | 组合里根本没有安装插件（或它被禁用） | 这些技能不存在 |
 
-本机实测：在 `~/.agents/skills` 里放一份同名 `unity-pipeline`，插件的版本仍然胜出。
+上表第二行不是特例，而是层规则的直接结果：插件把 provider 注册进 agent 自己的层，比任何全局层或外部根都近，"最近的层胜出"与 `rank` 无关，所以外部目录里的同名副本盖不掉插件的版本。
 
 ### 工程检测与可见性
 
@@ -214,9 +214,7 @@ target: /Users/aqian/dsh-unity
 Unity project: /path/to/project (Editor 6000.3.14f1, URP, Editor open, unity CLI available). skills hidden for this project: asset-transformer-toolkit (missing package com.unity.industry.toolkit >=4.0.0), build-gtk (needs Unity >=6000.6 (project 6000.3.14f1)), …
 ```
 
-隐藏技能最多列 6 条，其余写 `and N more`；不在 Unity 工程里时这段为空，由提示词渲染器整条丢弃。
-
-本机实测：非 Unity 目录下模型目录恰好 3 个技能；切到一个 fixture 工程（Editor `6000.3.14f1`，manifest 里有 URP 和 uGUI）后，其余技能出现，且正好隐藏 `asset-transformer-toolkit`、`build-gtk`、`create-tile-palette-or-rule-tiles`、`setup-vivox-voice-chat`、`shader-graph-create-custom-node`——`asset-transformer-toolkit` 需要的 `com.unity.industry.toolkit` 没装、`build-gtk` 要求 Editor `>=6000.6`，另外三个需要的包也不在 manifest 里；上下文行同时给出了同样的原因。
+隐藏技能最多列 6 条，其余写 `and N more`；不在 Unity 工程里时这段为空，由提示词渲染器整条丢弃。上下文里的原因与目录里隐藏的技能一一对应：缺哪个包、要求什么版本、工程实际是什么版本。
 
 ## 开发与验证
 
@@ -224,14 +222,14 @@ Unity project: /path/to/project (Editor 6000.3.14f1, URP, Editor open, unity CLI
 npm install               # 安装 typescript 与 @types/node
 npm run build             # 编译 src/ → lib/（发布产物，不入库）
 npm run typecheck         # 用 tsconfig.test.json 检查 src/、test/、scripts/
-npm test                  # 单元测试：53 个用例，直接跑 TypeScript（Node 内置类型剥离）
+npm test                  # 单元测试：直接跑 TypeScript（Node 内置类型剥离）
 npm run validate          # 技能合规性：结构、frontmatter、需求字段、正文体积、资源引用
 ```
 
-`npm run validate` 检查的是：技能目录里有 `SKILL.md`、frontmatter 能解析、名称是 kebab-case 且与目录一致、描述非空且不含 `<`/`>`、名称唯一、正文非空、`required_*` 需求字段能解析、`SKILL.md` 不超过 16384 字节（超过即告警，见下节）、provider 能 `list()` 与 `load()` 出全部技能、以及正文里技能相对路径的资源引用在磁盘上存在。失败退出码 1；警告不影响退出码。当前是 34/34 技能、228/228 资源引用、0 失败 0 告警，最大的 `SKILL.md` 为 11969 字节。
+`npm run validate` 检查的是：技能目录里有 `SKILL.md`、frontmatter 能解析、名称是 kebab-case 且与目录一致、描述非空且不含 `<`/`>`、名称唯一、正文非空、`required_*` 需求字段能解析、`SKILL.md` 不超过 16384 字节（超过即告警，见下节）、provider 能 `list()` 与 `load()` 出全部技能、以及正文里技能相对路径的资源引用在磁盘上存在。失败退出码 1；警告不影响退出码。脚本会打印本次检查的技能数、资源引用数与最大的 `SKILL.md`，这些数字随技能内容变化，以实际输出为准。
 
 ```bash
-node scripts/validate-skills.ts --report reports/skill-audit.md   # 另外写一份 Markdown 报告
+node scripts/validate-skills.ts --report /tmp/skill-audit.md   # 另外写一份 Markdown 报告
 ```
 
 安装后也可以直接看：
@@ -243,7 +241,7 @@ node scripts/validate-skills.ts --report reports/skill-audit.md   # 另外写一
 
 ## 已知限制
 
-- **正文体积有硬约束**：载入的 `SKILL.md` 是工具结果，压缩（compaction）在超过 8192 字符时会裁剪，所以 `SKILL.md` 只做路由——判断、步骤、指向 `references/` 的链接；细节都放在 `references/` 里按需读取。当前 34 个 `SKILL.md` 全部 ≤ 12 KB（最大 11969 字节），校验脚本在超过 16384 字节时告警。新增或改写技能时请沿用这个结构，否则该技能在长会话里会被裁断。
+- **正文体积有硬约束**：载入的 `SKILL.md` 是工具结果，压缩（compaction）在超过 8192 字符时会裁剪，所以 `SKILL.md` 只做路由——判断、步骤、指向 `references/` 的链接；细节都放在 `references/` 里按需读取。34 个 `SKILL.md` 都按这个结构控制在远小于 16384 字节的规模，校验脚本在超过 16384 字节时告警。新增或改写技能时请沿用这个结构，否则该技能在长会话里会被裁断。
 - **文件监视有边界**：watcher 只关心 `SKILL.md` 的变化（新增、删除、改名、编辑），并按 200ms 防抖合并突发写入；`references/` 等资源文件靠加载时读取，不需要刷新。平台或沙箱不允许监视时，会记录一条警告并退回"重启后生效"。
 - **回退到全局 provider 时会退步**：如果某个 profile 里 `agent.ctx` 够不到 `skills`（或没有 `agents` 服务），插件只注册一份全局 provider，并记录一条警告。这条路径仍按每次查询的 `cwd` 做工程门控，但没有 `unity:project` 上下文，且同名的预设层技能会重新胜出。
 - **非 Unity 会话只提供 3 个技能**：默认 `workspaceSkills` 是 `new-unity-project`、`unity-cli`、`unity-package-management`；需要别的技能就显式点名，或用 `workspaceSkills` 调整。
@@ -252,10 +250,13 @@ node scripts/validate-skills.ts --report reports/skill-audit.md   # 另外写一
 - **技能会直接改工程**：编辑脚本、场景和资产；Unity CLI 可用时在打开的 Editor 里跑 C#。不是所有改动都能在 Editor 里撤销，先用版本控制。
 - **`exclude` 按目录名匹配**：本包 34 个技能的目录名与 frontmatter `name` 全部一致（校验脚本会检查）；若将来出现不一致，`exclude` 仍以目录名为准。
 - **profile 级改动**：安装与启停影响该 profile 的所有会话；替换已安装的包需要重启 DSH。
-- **入口是技能目录与 `skill` 工具**：没有额外的斜杠菜单或提示词入口。
+- **入口是技能目录与 `skill` 工具**：插件本身不额外注册斜杠菜单或提示词入口；`/技能名` 的显式调用来自 DSH 的技能机制，不是本包新增的入口。
 - **构建产物不入库**：`lib/` 是 `npm run build` 的输出并被 `.gitignore` 忽略；按目录安装前必须先构建，否则插件行会因为找不到 `lib/index.js` 而加载失败。
 
 ## 许可证
 
-- 技能正文的版权属于 Unity Technologies，按 Unity Companion License（`LicenseRef-Unity-Companion-License`）使用，全文见 [LICENSE.md](./LICENSE.md)。
-- Unity 的名称、图标等标识属于 Unity Technologies，使用请遵守 [Unity 品牌指南](https://unity.com/legal/branding-trademarks)。
+本包按路径分属两套许可证，逐路径的清单见 [NOTICE.md](./NOTICE.md)。
+
+- **整合代码（MIT）**：插件源码、测试、脚本、配置与文档（`src/`、`test/`、`scripts/`、`cordis.patch.yml`、`locale/`、`icon.svg`、`README.md`、`docs/` 等）以 MIT 许可发布，全文见 [LICENSE.md](./LICENSE.md)。
+- **技能内容（Unity Companion License）**：`skills/` 下的技能正文与随附资源版权属于 Unity Technologies，按 Unity Companion License 使用，全文见 [LICENSE-UNITY-COMPANION.md](./LICENSE-UNITY-COMPANION.md)。该许可证要求持有有效的 Unity Engine License，且不授予商标权利。
+- **标识**：Unity 的名称、图标等标识属于 Unity Technologies，使用请遵守 [Unity 品牌指南](https://unity.com/legal/branding-trademarks)。
