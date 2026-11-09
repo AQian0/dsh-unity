@@ -4,14 +4,14 @@
  *
  * The validator deliberately drives the plugin's own code path instead of a
  * private re-implementation: discovery and loading go through
- * `createUnitySkillReader` from `../lib/skills.js`, so a skill that the plugin
+ * `createUnitySkillReader` from `../src/skills.ts`, so a skill that the plugin
  * would silently skip shows up here as a failure. Parsing goes through
- * `parseSkillMarkdown` from `../lib/frontmatter.js`. The skills live in this
+ * `parseSkillMarkdown` from `../src/frontmatter.ts`. The skills live in this
  * package and are edited here, so the audit asks one question only: can the
  * harness discover and load them? It never compares against an external tree.
  *
  * Usage:
- *   node scripts/validate-skills.mjs [skillsDir] [--report <file>]
+ *   node scripts/validate-skills.ts [skillsDir] [--report <file>]
  *
  * Exit code 0 when every check passes, 1 on any failure. Warnings (missing
  * optional resource files, unusual frontmatter keys, ...) never change the exit
@@ -268,7 +268,7 @@ async function main(): Promise<number> {
     try {
       parsed = parseSkillMarkdown(raw);
     } catch (error) {
-      fail(file, 'frontmatter', `frontmatter does not parse with lib/frontmatter.js: ${String(error)}`);
+      fail(file, 'frontmatter', `frontmatter does not parse with src/frontmatter.ts: ${String(error)}`);
       continue;
     }
     if (parsed === undefined) {
@@ -500,7 +500,7 @@ function typeName(value: unknown): string {
 }
 
 /** CLI usage text. */
-const USAGE = `Usage: node scripts/validate-skills.mjs [skillsDir] [--report <file>]
+const USAGE = `Usage: node scripts/validate-skills.ts [skillsDir] [--report <file>]
 
   skillsDir        directory holding skill bundles (default: ./skills)
   --report <file>  also write the Markdown audit report to this path
@@ -619,10 +619,10 @@ function renderMarkdown(summary: Summary): string {
   lines.push(`- Generated: ${new Date().toISOString()}`);
   lines.push(`- Node: ${process.version}`);
   lines.push(`- Skills directory: \`${summary.skillsDir}\``);
-  lines.push(`- Validator: \`scripts/validate-skills.mjs\` (\`npm run validate\`)`);
+  lines.push(`- Validator: \`scripts/validate-skills.ts\` (\`npm run validate\`)`);
   lines.push('');
-  lines.push('Discovery and loading are exercised through `createUnitySkillReader` from `lib/skills.js`');
-  lines.push('and frontmatter parsing through `parseSkillMarkdown` from `lib/frontmatter.js`, so the audit');
+  lines.push('Discovery and loading are exercised through `createUnitySkillReader` from `src/skills.ts`');
+  lines.push('and frontmatter parsing through `parseSkillMarkdown` from `src/frontmatter.ts`, so the audit');
   lines.push('measures what the harness itself would see.');
   lines.push('');
   lines.push('## Summary');
