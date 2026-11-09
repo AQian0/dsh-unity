@@ -234,6 +234,15 @@ npm run validate          # 技能合规性：结构、frontmatter、需求字�
 node scripts/validate-skills.ts --report /tmp/skill-audit.md   # 另外写一份 Markdown 报告
 ```
 
+### CI 与发布
+
+- `.github/workflows/ci.yml`：push 到 `main`、PR 与手动触发时，在 Node 22.18 与 24 上跑
+  `npm run typecheck`、`npm test`、`npm run validate`，构建后对 `npm pack` 的清单做冒烟检查。
+- `.github/workflows/release.yml`：推 `v<version>` tag 时校验 tag 与 `package.json` 版本一致、
+  提交在 `main` 上，重跑门禁并校验 tarball，然后用 npm 可信发布（GitHub OIDC，无需
+  `NPM_TOKEN`）发布到 npm 并创建 GitHub Release；首次发布与 trusted publisher 的配置见
+  workflow 顶部注释。
+
 安装后也可以直接看：
 
 - 插件页里的「Unity 技能」与 `unity-skills` 行；

@@ -34,6 +34,8 @@
   `npm run validate`（技能结构、frontmatter、需求字段、正文体积与资源引用检查，
   支持 `--report <file>` 输出 Markdown 审计报告）。
 - 文档：`README.md`（安装、使用、配置、门控与已知限制）与 `docs/design.md`（设计说明）。
+- CI/CD：GitHub Actions 的 `ci.yml`（类型检查、测试、技能校验与 tarball 冒烟检查）与
+  `release.yml`（tag 触发的 npm 可信发布与 GitHub Release）。
 
 ### 变更
 
