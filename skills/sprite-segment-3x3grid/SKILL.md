@@ -60,58 +60,14 @@ The **match threshold** determines what percentage of pixels in a non-center cel
 
 ## Output Legend
 
-| Symbol | Meaning |
-|--------|---------|
-| `X` | Cell does NOT meet the match threshold (insufficient pixels match center color) |
-| `.` | Cell MEETS the match threshold (enough pixels match center color) |
-| `*` | The center cell itself (always position [1,1] in the grid) |
+`X` = cell does not meet the match threshold, `.` = it does, `*` = the center cell.
 
 ## Output Format
 
-Output a single line with three groups of three characters, separated by ` / `. Each group represents one row of the grid.
-
-**Order**: Top to Bottom rows, Left to Right within each row.
-
-**Format**: `[TopRow] / [MiddleRow] / [BottomRow]`
-
-Each row contains 3 characters separated by spaces: `[Left] [Center] [Right]`
-
-### Grid Position Mapping
-
-```
-Grid Layout:        Output Order:
-[0,0] [1,0] [2,0]   1  2  3   -> First group
-[0,1] [1,1] [2,1]   4  5  6   -> Second group (5 is always *)
-[0,2] [1,2] [2,2]   7  8  9   -> Third group
-```
-
-### Examples
-
-**Example 1**: Center matches top-left and bottom-right only
-```
-. X X / X * X / X X .
-```
-Grid interpretation:
-```
-.  X  X
-X  *  X
-X  X  .
-```
-
-**Example 2**: Center matches all surrounding cells
-```
-. . . / . * . / . . .
-```
-
-**Example 3**: Center matches none of the surrounding cells
-```
-X X X / X * X / X X X
-```
-
-**Example 4**: Center matches bottom row only
-```
-X X X / X * X / . . .
-```
+One line, three groups of three characters separated by ` / `, top-to-bottom rows and
+left-to-right within a row: `[TopRow] / [MiddleRow] / [BottomRow]`, with each row written
+`[Left] [Center] [Right]`. The grid-position mapping and worked examples are in
+[output-format.md](references/output-format.md).
 
 ## Implementation Guidance
 
@@ -147,11 +103,12 @@ Use the Sprite's `rect` property to determine the pixel region to analyze:
 
 ## Notes
 
-- This analysis works best with sprites that have distinct color regions
-- For sprites with gradients or many colors, consider increasing color tolerance
-- Flip the y-axis from Unity's texture coordinates so the output runs top to bottom
-- Treat transparent pixels as a distinct "color", or ignore them, depending on the use case
+- The analysis works best with sprites that have distinct color regions; increase the color
+  tolerance for gradients or many colors.
+- Flip the y-axis from Unity's texture coordinates so the output runs top to bottom.
+- Treat transparent pixels as a distinct color, or ignore them, depending on the use case.
 
+The worked final-report example is in [notes.md](references/notes.md#worked-example).
 ## Final step
 
 Do the following checks:
@@ -165,13 +122,4 @@ If a check fails, go back and reread the [docs pages](#full-topic-map) to find o
 
 Give the user a concise but not dense checklist of what you did and why, including any incidental side effects (for example, settings you toggled to test something, or temporary files you created). If the user needs to follow up with more steps or decisions, list them. For example:
 
-```
-I analyzed the `Rock_01` sprite with the default 75% match threshold:
-
-. X X / X * X / X X .
-
-[✓] Split the sprite's `rect` into a 3x3 grid.
-[✓] Compared each cell with the center cell's majority color.
-
-If you want a stricter or more lenient result, give me a threshold, for example 90% or 50%.
-```
+A worked example is in [notes.md](references/notes.md#worked-example).

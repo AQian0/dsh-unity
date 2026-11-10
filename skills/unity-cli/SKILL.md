@@ -2,7 +2,7 @@
 name: unity-cli
 description: Controls Unity Editors and projects from the command line, including a running Editor. Use to install or manage Editors, licenses, or projects, set up version control, build, test, edit scenes, run C#, or run any unity command.
 allowed-tools:
-  - Bash
+  - bash
 ---
 
 # Unity CLI
@@ -16,19 +16,21 @@ being wrong. Check with `unity self-update --check --format json`.
 
 ## Find a command: search, don't grep help
 
-**Never filter `unity --help` or a group's help with `grep`.** Help is long, and a grep over it drops the match or the context around it. Use the CLI's own search:
+**Never filter `unity --help` or a group's help with `grep`**: help is long, and a grep drops
+the match or its context. Use the CLI's own search:
 
 ```bash
-unity commands --grep license                 # built-in commands, plugins and the connected Editor's Pipeline commands
-unity command --query screenshot              # the same search
+unity commands --grep license                 # built-in, plugin catalog, and connected Editor commands
+unity command --query screenshot              # the same search; waits for the Editor
 ```
 
-`unity commands --grep <pattern>` and `unity command --query <term>` are one search. It covers the CLI's built-in commands, the plugin catalog (installed or not) and the Pipeline commands of the live connected Editor, best match first. Plain words each match in any order; regex characters make it a regular expression. Each row says how to run it (`invoke`): `unity projects link cloud`, `unity command create_gameobject`, `unity <id>` for an installed plugin, or `unity plugin install <id>` for one not yet installed. In `--format json` each row also carries `kind` (`command`, `plugin`, `pipeline`), `path`, `description` and `matchedOn` (`name`, `description` or `option`), so act on `invoke` rather than parsing the table.
-
-- **Search before you work around the CLI or tell the user it can't help.** A request that names a Unity service, store or product feature (finding Asset Store assets, generating a texture, a cloud build) may be served by a catalog plugin that isn't installed yet, and nothing else on the machine will say so. Search with the request's own words (`unity commands --grep "asset store"`). A row whose `invoke` is `unity plugin install <id>` is that plugin: tell the user, and ask before installing it ([Use a catalog plugin](#use-a-catalog-plugin-for-a-task-the-built-in-commands-dont-cover)).
-- Use `unity command --query <term>` to search a specific Editor (`--project-path <project>`) or a Player (`--runtime <pattern>`, e.g. `unity command --query screenshot --runtime MyGame`).
-- `commands --grep` waits at most 3 seconds for the Editor; `command --query` waits for it. When the Editor was not searched, a last line says why (no Editor, no answer in time, several Editors) and what to run. Wait for the Editor first with `unity status --until-ready --project-path <project>`: before it connects, no Pipeline row is not proof nothing exists.
-
+Plain words match in any order; regex characters make it a regular expression. In `--format json`
+each row carries `kind` (`command`, `plugin`, `pipeline`), `path`, `description`, `matchedOn`, and
+`invoke` — act on `invoke`, don't parse the table. Search with the request's own words before
+working around the CLI: a row whose `invoke` is `unity plugin install <id>` is a catalog plugin
+worth telling the user about. `commands --grep`
+waits at most 3 seconds for the Editor; `command --query` waits for it. Run
+`unity status --until-ready --project-path <project>` first when the Editor has not answered.
 Fields and flags: [integration-advanced.md](references/integration-advanced.md#querying-the-command-list).
 
 ## Drive a running Unity Editor (if one is open)
@@ -80,79 +82,41 @@ Branch on these before parsing output; retry guidance per code: [exit-codes.md](
 
 ## Commands
 
-The full per-command reference — syntax, flags, and examples — lives in grouped files under
-[`references/`](references/). **Read the file for the command group you need**; all the global
-flags, environment variables, and exit codes above apply throughout. Every command also supports
-`-h` / `--help` (see [Getting help](#getting-help)).
-
-| Commands | Reference file |
-|---|---|
-| `auth` (login / logout / status / list / switch / default / consumers / revoke), `license` (activate / return / server), `cloud` (org / project) | [auth-license-cloud.md](references/auth-license-cloud.md) |
-| `pipeline cloud-build` (targets incl. groups, create, update, auditlog / builds incl. steps, timeline, failures, artifacts, log, download, start, cancel / credentials upload / connections / scm check-url / org free-tier / project / tooling), `pipeline automation` (apps / pipelines incl. trigger / jobs incl. watch, logs, terminate, resume, approve, reject / automations / bots / profiles / templates, plus `apps versions`, `pipelines versions`, `jobs stats`) | [cloud-automation.md](references/cloud-automation.md) |
-| `editors` (list / running / add / default / path / install-path / info / upgrade / prune / verify / module), `install`, `uninstall`, `modules`, `install-modules`, `terms` (accept / status) | [editors-install.md](references/editors-install.md) |
-| `projects` (list / create / clone / open / link / require / upgrade / export / import / pin / size / clean / exec; its help reads "Create, open, upgrade, and link local Unity projects (Unity Cloud, GitHub/GitLab)", so linking a folder to Unity Cloud is `projects link cloud`, not `cloud`), `open`, `close`, `releases`, `templates` (list / info / create / pack / delete), `assets` (`inspect` / `export`) | [projects-templates.md](references/projects-templates.md) |
-| `config` (proxy / update-check / accelerator / get / set / list / unset / resolve), `context` (save / use / list / current / delete), `hub install` | [config-hub.md](references/config-hub.md) |
-| `run`, `test`, `build` (+ `build run`), `recompile`, `watch` (`test`) | [build-run-test.md](references/build-run-test.md) |
-| `logs`, `doctor`, `env`, `version`, `cache`, `ci init`, `analytics`, `changelog`, `docs` (+ `toc`), `language`, `completion`, `bug`, `self-update`, `self-uninstall`, `diagnose proxy`, `diagnose accelerator`, `diagnose update` | [diagnostics-maintenance.md](references/diagnostics-maintenance.md). To find, cite and version-match Unity docs: [docs-workflow.md](references/docs-workflow.md) |
-| `mcp` (+ `configure`), `setup claude` / `codex` / `grok` / `antigravity` / `copilot` / `qwen` / `vscode` / `opencode`, `skill` (install / refresh / show), `plugin` (install / remove / upgrade / list / changelog), local `pipeline` (install / upgrade / list / list-versions), `command` / `commands` / `status` / `list`, `job` (status / wait / cancel), answering an open modal dialog (`command editor dialog` / `editor dialog answer`, or `editor.dialog list` / `answer` / `dismiss`), `shell` | [integration-advanced.md](references/integration-advanced.md) |
-| `vcs` — `setup` / `status` / `sync` / `switch` / `doctor` / `providers` / `merge-setup` / `conflicts` / `explain` / `resolve` / `diff` / `blame` / `summarize` / `affected` / `hooks`, `vcs git` (`migrate-lfs` / `worktree`), `vcs uvcs` (`locks` / `changesets` / `review`) | [version-control.md](references/version-control.md) |
-| `collaboration` (alias `collab`) — `annotations` / `attachments` / `thumbnail` / `reactions` / `read` / `subscribe` / `jira` | [collaboration.md](references/collaboration.md) |
+Every command group and its reference file: [commands-index.md](references/commands-index.md).
+Read the file for the group you need; the global flags, environment variables, and exit
+codes above apply throughout.
 
 ## Common workflows
 
-### Inspect and run cloud builds and Pipeline Automation jobs
-
-`pipeline cloud-build` and `pipeline automation` end to end: [cloud-workflows.md](references/cloud-workflows.md).
-
-### Edit a scene, GameObject, or asset — `unity status` first
-
-Read before editing any scene, prefab or asset: the preflight and the Safe Mode / sandbox false negatives in [scene-editing-preflight.md](references/scene-editing-preflight.md).
-
-### Use a catalog plugin for a task the built-in commands don't cover
-
-When a request names a Unity feature no built-in command covers, check the catalog first: [catalog-plugins.md](references/catalog-plugins.md).
-
-### Bootstrap a new project from scratch
-
-Raw CLI recipe from install to first commit (the `new-unity-project` skill is the guided path): [bootstrap-project.md](references/bootstrap-project.md).
-
-### Find and install a missing editor
-
-Check what is installed, browse LTS releases, then install one: [setup-and-help.md](references/setup-and-help.md#find-and-install-a-missing-editor).
-
-### Open a project with the correct editor
-
-```bash
-# 1. Check the project's required editor version
-unity projects info /path/to/MyProject --format json
-# Look at "editorVersion" in the result
-
-# 2. Confirm that editor is installed
-unity editors --installed --format json
-
-# 3. Open (warns if the editor version is missing)
-unity open /path/to/MyProject
-```
-
-### CI: activate a license, then build
-
-CI recipe that activates a license, builds, then returns it: [ci-recipes.md](references/ci-recipes.md#ci-activate-a-license-then-build).
-
-### CI: headless build
-
-Headless `unity build` and `unity run` invocations for CI: [ci-recipes.md](references/ci-recipes.md#ci-headless-build).
-
-### CI: run tests and publish results
-
-JUnit output, exit-code branching and test-selection rules: [ci-recipes.md](references/ci-recipes.md#ci-run-tests-and-publish-results).
-
-### Debug the CLI
-
-`unity doctor --json` and `unity logs --follow` while a run misbehaves: [setup-and-help.md](references/setup-and-help.md#debug-the-cli).
+- **Cloud builds and Pipeline Automation** end to end: [cloud-workflows.md](references/cloud-workflows.md).
+- **Edit a scene, GameObject, or asset**: run `unity status` first and read the preflight and
+  Safe Mode / sandbox false negatives in [scene-editing-preflight.md](references/scene-editing-preflight.md).
+- **A request names a Unity feature no built-in command covers**: check the catalog in
+  [catalog-plugins.md](references/catalog-plugins.md) before working around the CLI.
+- **Bootstrap a new project from scratch**: raw recipe in [bootstrap-project.md](references/bootstrap-project.md)
+  (the `new-unity-project` skill is the guided path).
+- **Find/install a missing editor**: [setup-and-help.md](references/setup-and-help.md#find-and-install-a-missing-editor).
+- **Open a project with the correct editor**: `unity projects info <path> --format json`, confirm the
+  `editorVersion` is installed with `unity editors --installed --format json`, then `unity open <path>`.
+- **CI**: license activation and build [ci-recipes.md](references/ci-recipes.md#ci-activate-a-license-then-build);
+  headless build [ci-recipes.md](references/ci-recipes.md#ci-headless-build); tests and JUnit output
+  [ci-recipes.md](references/ci-recipes.md#ci-run-tests-and-publish-results).
+- **Debug the CLI**: `unity doctor --json` and `unity logs --follow`, then
+  [setup-and-help.md](references/setup-and-help.md#debug-the-cli).
 
 ## Notifications
 
 When a JSON envelope carries `notifications`: what to surface and what needs approval — [notifications.md](references/notifications.md).
+
+## In DeepSeek Harness
+
+- These skills are installed by the DSH `@aqian0/dsh-unity` bundle; do **not** run
+  `unity setup <agent>` or `unity skill install` again.
+- MCP servers are configured by the DSH profile, not by `unity mcp configure <client>`.
+  The CLI and the Pipeline commands are the supported path when you can run shell commands.
+- DSH's default `workspace-write` sandbox may deny writes outside the workspace (Editor
+  installs, `~/.unity`, licenses) and network access. Report the denial and ask the user for
+  approval or a wider permission mode; do not work around the sandbox.
 
 ## Notes
 

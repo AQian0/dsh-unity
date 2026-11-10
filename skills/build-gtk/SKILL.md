@@ -77,44 +77,10 @@ Machine API is not available there. Do not emulate it with the Graph API unless 
 
 ## Step 2: Start from the graph tool skeleton
 
-The `implement-a-graph-tool.md` and `implement-nodes.md` pages explain this in full. When they cannot
-be fetched, start from:
-
-```csharp
-[Graph(AssetExtension)] [Serializable]                     // GraphOptions.SupportsSubgraphs as a second argument
-class DialogueGraph : Graph
-{
-    public const string AssetExtension = "dialogue";
-    [MenuItem("Assets/Create/Dialogue/Dialogue Graph")]
-    static void Create() => GraphDatabase.PromptInProjectBrowserToCreateNewAsset<DialogueGraph>();
-}
-
-[Serializable] [Node("Dialogue")]
-class LineNode : Node
-{
-    protected override void OnDefinePorts(IPortDefinitionContext context)
-    {
-        context.AddInputPort("In").Build();                                       // untyped: execution flow
-        context.AddInputPort<string>("Text").Build();
-        context.AddOutputPort("Next").WithCapacity(PortCapacity.Single).Build();  // outputs accept many wires by default
-    }
-}
-```
-
-Different port types do not connect unless `Graph.IsConnectionAllowed(IPort output, IPort input)`
-allows it; the graph only records the wire, and the importer does the conversion.
-
-### Gotchas
-
-| Symptom | Fix |
-|---|---|
-| A typed input port refuses a second wire, or an output accepts several | Typed inputs default to `PortCapacity.Single`; untyped ports and outputs to `Multi`. Set `WithCapacity` explicitly |
-| `GetInputPortByName` or `GetNodeOptionByName` returns the wrong element or null | Port and option names are lookup keys: keep them unique, share a `const` between `OnDefineOptions` and `OnDefinePorts` |
-| Ports rebuild on every keystroke of a count option | `.Delayed()` on the option |
-| `AsVertical()` has no effect | Block node ports are always horizontal |
-| A node lands in an odd Add-menu folder such as `Math/Add/Add` | The first `[Node]` argument is a folder path; the title is appended to it |
-| `OnEnable` runs several times | Expected on load, reopen and domain reload: keep it idempotent |
-| Compile error on a class marked `[SerializeReference]` | That attribute is for fields; classes take `[Serializable]` |
+The minimal `Graph` + `Node` skeleton, the port-capacity rules and the port/option
+gotchas are in [graph-skeleton.md](references/graph-skeleton.md). Read it when
+`implement-a-graph-tool.md` and `implement-nodes.md` cannot be fetched, or when a
+port, option or Add-menu placement behaves unexpectedly.
 
 ## Step 3: Where the docs stop
 
@@ -122,79 +88,29 @@ Read before writing importer, state machine or change-tracking code: these parts
 
 ## Topic map
 
-The docs are online at `https://docs.unity.com/en-us/engine/<VERSION>/`. Replace `<VERSION>` with the
-project's Editor version from `ProjectSettings/ProjectVersion.txt`, for example `6000.6` or `6000.7`.
-Pages are served as markdown when the `.md` suffix is kept. Prefer `WebFetch` over `WebSearch`; it is
-faster and lands on the exact page. Only fetch what you need.
-
-- **GTK index**: `manual/extending-the-editor/gtk-index.md`, the landing page for all GTK manual topics
-  - **Implementing a graph tool**: `manual/extending-the-editor/gtk-index/implementing-a-graph-tool.md`,
-    with these pages under it:
-    - `implement-a-graph-tool.md`: graph class, asset creation, menu item
-    - `implement-nodes.md`: node class, `OnDefinePorts`, discovery rules
-    - `implement-node-options.md`: `IOptionDefinitionContext`, `Delayed`, `ShowInInspectorOnly`
-    - `implement-context-nodes.md`: `ContextNode`, `BlockNode`, `UseWithContext`
-    - `implement-block-nodes.md`: block port rules, horizontal-only ports
-    - `type-cast-ports.md`: `IsConnectionAllowed`, cross-type connections
-    - `add-custom-toolbar-actions.md`: `GraphToolbarElement`, `IGraphWindow`
-    - `add-subgraph-support.md`: `GraphOptions.SupportsSubgraphs`, subgraph ports from Blackboard variables
-    - `graph-processing.md`: `OnGraphChanged`, `GraphLogger`, `GraphLogAction`, fix buttons
-  - **Graph window and panels**: `manual/extending-the-editor/gtk-index/landing-graph-interface.md`, with
-    `graph-window.md`, `blackboard.md`, `graph-inspector.md` and `minimap.md` under it
-  - **Debug graph view** (manual from `6000.7`; the API is the same on 6.6):
-    `manual/extending-the-editor/gtk-index/landing-implementing-debug-graph-view.md`, with
-    `concept-graph-visualization.md`, `task-display-node-progress.md`, `task-display-port-values.md`,
-    `task-display-errors-in-graph.md` and `task-customize-wire-display.md` under it
-- **Samples**: `https://docs.unity3d.com/Packages/com.unity.graphtoolkit-samples@<PKG_VERSION>/manual/index.html`.
-  Install `com.unity.graphtoolkit-samples` by name in the Package Manager, replace `<PKG_VERSION>` with
-  the version shown there, then import Texture Maker (importer), Visual Novel Director (runtime and live
-  debug view) or Dungeon Graph Generator (building a graph from code).
-- **Community**: `https://discussions.unity.com/tag/graph-toolkit`, for known issues and workarounds not
-  yet in the docs.
-
-### API reference
-
-Exact type names per API and how to build a Script Reference URL or read the local HTML copy: [api-reference.md](references/api-reference.md).
+The GTK manual, samples and community links are collected in
+[docs-map.md](references/docs-map.md). Use the Editor version from
+`ProjectSettings/ProjectVersion.txt` in the docs URL and prefer `WebFetch` over
+`WebSearch`.
 
 ## Final step
 
-Do the following checks:
-
-1. Check the project has zero console errors. Use `unity command console status` for counts. Without
-   the Unity CLI, ask the user to select the Editor and report what is displayed in the Console.
+1. Confirm the Console has zero errors (`unity command console status` for counts; without the CLI,
+   ask the user to select the Editor and report the Console).
 2. Create an asset from the new menu item, add every node or state type from the Add menu, connect
-   them, save, close and reopen. The Console must show no errors or warnings. A type missing from the
-   Add menu is abstract, generic, or in another assembly without `[UseWithGraph]` /
-   `[UseWithStateMachine]`.
+   them, save, close and reopen. No errors or warnings. A missing type is abstract, generic, or in
+   another assembly without `[UseWithGraph]` / `[UseWithStateMachine]`.
 3. With an importer, confirm the produced runtime object is the main asset.
-4. Stop there unless the user asked you to prove it works or you suspect a specific fault.
-5. If you do enter Play mode, do it once only to chase a fault you already suspect. Read the world
-   through `unity command script eval --caller plugin --skill build-gtk --code '<snippet>'` rather than adding logging. Take no screenshots as they take too
-   much time.
+4. Stop there unless the user asked you to prove it works or you suspect a specific fault. If you do
+   enter Play mode, do it once, and read the world with `unity command script eval --caller plugin
+   --skill build-gtk` instead of adding logging.
 
-If a check fails, go back and reread the [docs pages](#topic-map) or reference file for that step to
-find out what you missed.
+If a check fails, reread the docs page from [docs-map.md](references/docs-map.md) or the reference
+file for that step.
 
 ## Final report
 
 Give the user a concise but not dense checklist of what you did and why. If the user needs to follow up
 with more steps or decisions, list them. For example:
 
-```
-I made the following changes:
-
-[✓] Created `Editor/DialogueGraph.cs`: the graph class registered on the `.dlg` extension.
-[✓] Created `Editor/DialogueNode.cs`: a start node and a line node with text and next ports.
-[✓] Created `Editor/DialogueImporter.cs`: compiles the graph into a `DialogueRuntimeGraph` asset.
-
-To create your first graph:
-1. Right-click in the Project window > Create > Dialogue > Dialogue Graph.
-2. Double-click the asset to open the graph window.
-3. Add a Start node and a Line node from the Add menu and connect them.
-4. Save. The Inspector should show the compiled `DialogueRuntimeGraph` as the main asset.
-
-Still to decide:
-- More node types (choice branches, wait, end).
-- The runtime executor (a MonoBehaviour that walks the runtime asset).
-- A live debug view using the GraphVisualization API.
-```
+A worked example is in [final-report-example.md](references/final-report-example.md).

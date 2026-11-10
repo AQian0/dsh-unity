@@ -2,10 +2,10 @@
 name: craft-game-floors
 description: "Makes a Unity game look and feel finished: art style, lighting, juice, sound, menus, saves and look scoring. Use when building a new game's first playable version, or when a game looks like programmer art, feels flat or silent, or needs polish."
 allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
+  - bash
+  - read
+  - write
+  - edit
 ---
 
 # Craft Game Floors
@@ -36,26 +36,14 @@ recommendations, with no project modifications until the user says go.
 
 ## Entering mid-flow
 
-The references assume an **art bible** (style statement + fixed palette) and, where audio meets
-UI, the **mixer handshake** (exposed params `MusicVol`/`SFXVol`). On an existing project, run
-these in order before the asked-for floor:
+The references assume an art bible (style statement + fixed palette) and, where audio meets UI,
+the mixer handshake. On an existing project, run the restore point, render-pipeline check, art
+bible, identity probe and done-gate scoping in order before the asked-for floor:
+[entering-mid-flow.md](references/entering-mid-flow.md).
 
-1. **Restore point** — confirm a clean commit to roll back to, or create one, before any change.
-2. **Render pipeline** — read `GraphicsSettings.currentRenderPipeline`: the look floors' verifies
-   are written for URP; on Built-in or HDRP, apply the opinions, name the pipeline gap, and skip
-   the URP-typed checks.
-3. **Art bible** — look for a `Palette` type or an art-bible note (CLAUDE.md, docs); if none
-   exists, write the three-line bible from the game's current look first — retro-tinting later is
-   the expensive order.
-4. **Identity (live floor only)** — verify player identity with a live probe (services
-   initialized and a PlayerId present), never by assuming an earlier setup step ran.
-5. **Scope the done gate** to the surface you touched: a title-screen session scores the shell
-   and look axes, not the whole board.
-
-**A floor fills an engine default, never a developer's choice.** If the project already has its
-own controller, camera, shader, palette or style, keep it, apply only the floor's opinions that
-don't conflict, and name the difference in the report. Write an art bible only from choices the
-developer has made, and ask before adding one mid-project.
+**A floor fills an engine default, never a developer's choice.** Keep an existing controller,
+camera, shader, palette or style; apply only the floor's opinions that do not conflict and name
+the difference in the report.
 
 ## The floors — numbered in build order, read each at its moment
 
@@ -123,12 +111,7 @@ skipped.
 
 ## Common mistakes
 
-- **Polishing without a bible** — fixing one object's look against no palette; write the
-  three-line bible first, even mid-project.
-- **Replacing a developer's choice with a floor recipe** — an existing custom controller,
-  camera, shader or palette stays; the fix pass never swaps it for the floor's default.
-- **Treating a floor as a feature** — floors are defaults; the user declines one with a word, and
-  the decline is recorded in the report, never argued.
-- **Running the mechanics from memory** when a neighbour skill owns them — route and delegate.
-- **Skipping the done gate** because the change was small — scope it down instead.
-- **Applying 3D look instructions to a 2D game** — name the gap instead.
+Before the fix pass, check the recurring mistakes in
+[common-mistakes.md](references/common-mistakes.md): polishing without a bible, replacing a
+developer's choice with a floor recipe, treating a floor as a feature, running a neighbour
+skill's mechanics from memory, skipping the done gate, and applying 3D look instructions to 2D.
