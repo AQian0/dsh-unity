@@ -1,8 +1,8 @@
 # LevelPlay Common Issues and Solutions
 
-Detailed troubleshooting for issues that can occur during integration, referenced from the Common Issues
-table in SKILL.md. Read this when the user reports a compile error, a build failure, ads not loading,
-callbacks not firing, or a platform-specific build error.
+Detailed troubleshooting for issues that can occur during integration, referenced from SKILL.md. Read
+this when the user reports a compile error, a build failure, ads not loading, callbacks not firing, or a
+platform-specific build error. The symptom router below maps the report to the section that fixes it.
 
 **Note**: This section addresses issues that can occur during integration. If you haven't started the
 integration yet, begin with Step 1: Verify Environment.
@@ -97,3 +97,14 @@ integration yet, begin with Step 1: Verify Environment.
 - Verify Google Play Services is included
 - Check AndroidManifest.xml for required permissions
 - Ensure Gradle dependencies are resolved
+
+## At-a-glance symptom router
+
+| Symptom | Likely root cause | Action |
+|---|---|---|
+| `CS0246` on `Unity.Services.LevelPlay`; red underlines on all LevelPlay code | Ads Mediation package not installed | Stop giving code; check `Packages/packages-lock.json` for `com.unity.services.levelplay`; install (Step 3); restart Editor; then resume. See [CS0246](#cs0246--namespace-unityserviceslevelplay-not-found). |
+| Android gradle / iOS build fails with dependency errors; compiles in Editor but fails at build | Native dependencies not resolved | Resolve dependencies (Step 4 / `references/dependency-resolution.md`); verify `Assets/Plugins/Android/`; rebuild. See [dependency errors](#android-gradle-build-fails--ios-build-fails-with-dependency-errors). |
+| Ads not loading | SDK not initialized, wrong App Key, ad created before init, or no connectivity | Confirm `OnInitSuccess` fires before creating ads; check App Key; test on device. See [ads not loading](#ads-not-loading). |
+| Callbacks not firing | Events registered after init, missing subscriptions, or script destroyed | Register callbacks before `Init()`; verify subscriptions; use a persistent GameObject. See [callbacks not firing](#callbacks-not-firing). |
+| Platform-specific build errors (iOS SKAdNetwork/ATT/frameworks; Android Play Services/manifest/gradle) | Platform setup incomplete | See [platform-specific build errors](#platform-specific-build-errors) and `references/ios-setup.md`. |
+| Android build fails resolving `com.ironsource.sdk` dependencies from `android-sdk.is.com` (worked before; nothing changed) | Dependencies moved to Maven Central; the old is.com repository was shut down | Follow Scenario D in `references/migration-sdk-9.md`: delete the stale dependency XMLs, reinstall via Network Manager, verify no is.com references remain. |

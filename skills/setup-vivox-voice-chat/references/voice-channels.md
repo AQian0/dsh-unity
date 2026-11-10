@@ -68,6 +68,11 @@ Drive per-frame position updates by calling `VivoxService.Instance.Set3DPosition
 
 For >200 participants in a positional channel, enable the enterprise-tier Large 3D channels setting; see the documentation map's positional channels page.
 
+## Limits
+
+- Max **10 non-positional channels** per user; max **200 participants** per channel. Exceeding either fails with `20502 VxXmppServerErrorServiceUnavailable`.
+- For more than 200 participants in a positional channel, use the Large 3D channels enterprise setting.
+
 ## Leaving
 
 ```csharp

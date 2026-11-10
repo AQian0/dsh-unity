@@ -5,17 +5,9 @@ description: Integrates the LevelPlay ad mediation SDK via the Ads Mediation pac
 
 # LevelPlay Unity package/SDK Integration
 
-Base editor-side checks on the actual project rather than assumptions — read the project files, or ask the user to confirm in the Editor. The C# scripts generated in this skill are MonoBehaviour files for the user to save to their project, not for inline execution.
+Work from the project's actual files (or ask the user to confirm in the Editor), never from assumptions; generated C# is MonoBehaviour files the user saves to their project, not inline execution. This skill covers the LevelPlay integration path only. Provide only the files and configurations the steps describe — no extra steps, files, or recommendations from general knowledge — and run the steps in order, one at a time, waiting at each checkpoint. [Core Rules](#core-rules) below are binding from Step 0.
 
-This skill covers the LevelPlay integration path only; it does not cover other mediation SDKs. If the user explicitly asks about alternatives, acknowledge that alternatives exist and point them to those vendors' own documentation — do not describe, characterize, or make claims about competitor products.
-
-Follow the steps and provide only the files and configurations described in this skill. Do not proactively add steps, create files, or make recommendations based on general knowledge. If the user asks a question outside the scope of this skill, check the skill and reference files first to confirm it is not covered. If it is not, use general knowledge to respond, but do not incorporate additional steps or files into the integration workflow as a result.
-
-Follow the integration workflow sequentially, one step at a time. Ask only the questions for the current step — do not gather information for future steps in advance. Wait for the user's response at each checkpoint before proceeding.
-
-LevelPlay is Unity's ad mediation platform: it connects your game to multiple ad networks simultaneously and runs a unified auction across multiple ad networks and bidders to maximize competition for each impression. This guide walks you through the full integration: installing the SDK, configuring dependencies for Android and iOS, initializing LevelPlay in your project, and implementing rewarded, interstitial, and banner ads. If you already have part of this set up, you can skip ahead to the relevant step.
-
-**This SKILL.md is the workflow spine. It keeps the decisions and the checkpoints that gate each step; the exact question wording, longer code, full API detail, and edge cases live in `references/` and are linked from the relevant step. Read the linked reference when you reach that step — do not answer from general knowledge instead.**
+**This file is the workflow spine: it keeps the decisions and checkpoints that gate each step. Exact question wording, longer code, full API detail, and edge cases live in `references/`, linked from the relevant step. Read the linked reference when you reach that step — do not answer from general knowledge instead.**
 
 ## Integration Workflow
 
@@ -71,49 +63,17 @@ Mock ads work only on an Android/iOS build target, and the Test Suite needs a de
 
 Walk this before calling the integration done — it is the final gate. Read [production release checklist](references/production-release-checklist.md).
 
-## Adding More Ad Formats Later
-
-When a working integration needs another format, go back to Step 9 and keep the user's existing pattern. Read [adding more ad formats later](references/adding-more-ad-formats.md) for the steps and the worked example.
-
-## Best Practices
-
-Before implementing ad code, read `references/best-practices.md`. It covers loading strategy (per format), placement strategy, error handling and graceful degradation, memory management, frequency management, and common mistakes to avoid — incorporate these patterns into all ad implementations.
-
 ## Common Issues and Solutions
 
-If the user reports a problem, route to the matching issue in `references/troubleshooting.md` and follow it (stop generating code where that guidance says to). Do not wait for the user to open the reference — surface the fix directly. If they haven't started integration yet, begin with Step 1.
-
-| Symptom | Likely root cause | Action |
-|---|---|---|
-| `CS0246` on `Unity.Services.LevelPlay`; red underlines on all LevelPlay code | Ads Mediation package not installed | Stop giving code; check `Packages/packages-lock.json` for `com.unity.services.levelplay`; install (Step 3); restart Editor; then resume. See troubleshooting.md. |
-| Android gradle / iOS build fails with dependency errors; compiles in Editor but fails at build | Native dependencies not resolved | Resolve dependencies (Step 4 / dependency-resolution.md); verify `Assets/Plugins/Android/`; rebuild. See troubleshooting.md. |
-| Ads not loading | SDK not initialized, wrong App Key, ad created before init, or no connectivity | Confirm `OnInitSuccess` fires before creating ads; check App Key; test on device. See troubleshooting.md. |
-| Callbacks not firing | Events registered after init, missing subscriptions, or script destroyed | Register callbacks before `Init()`; verify subscriptions; use a persistent GameObject. See troubleshooting.md. |
-| Platform-specific build errors (iOS SKAdNetwork/ATT/frameworks; Android Play Services/manifest/gradle) | Platform setup incomplete | See troubleshooting.md and `references/ios-setup.md`. |
-| Android build fails resolving `com.ironsource.sdk` dependencies from `android-sdk.is.com` (worked before; nothing changed) | Dependencies moved to Maven Central; the old is.com repository was shut down | Follow Scenario D in `references/migration-sdk-9.md`: delete the stale dependency XMLs, reinstall via Network Manager, verify no is.com references remain. |
+If the user reports a problem, read the matching entry in [troubleshooting](references/troubleshooting.md) and follow it, including where it says to stop generating code. Do not wait for the user to open the reference — surface the fix directly. If they haven't started integration yet, begin with Step 1.
 
 ## When to Read Detailed References
 
-Read specific references based on what the user is doing:
+Each step links the reference it needs; follow those links. When the request does not map to a single step, start from [the topic map](references/overview.md) — it lists every reference with when to read it, and carries the LevelPlay context and the worked examples. For a reported problem use [troubleshooting](references/troubleshooting.md); for any migration or Maven Central dependency failure use [migration-sdk-9](references/migration-sdk-9.md).
 
-- **`references/dependency-resolution.md`**: Resolving native dependencies (Step 4), or gradle/CocoaPods build failures
-- **`references/initialization-api.md`**: Step 7 init code-organization options and ILRD init wiring; also user ID, segmentation, consent management, advanced config
-- **`references/privacy-settings.md`**: GDPR, CCPA, or COPPA compliance (incl. legacy `SetConsent` and the full network key list)
-- **`references/ios-setup.md`**: iOS builds — ATT, SKAdNetwork, the iOS coroutine initializer
-- **`references/rewarded-api.md`** / **`references/interstitial-api.md`** / **`references/banner-api.md`**: Implementing each ad format (Step 9)
-- **`references/best-practices.md`**: Strategy detail (Step 8), the Step 9 code-generation guidelines, optimization, placement
-- **`references/ilrd-api.md`**: Wiring ILRD to an analytics platform
-- **`references/testing-and-validation.md`**: Mock ads and the Test Suite (Step 10)
-- **`references/troubleshooting.md`**: Compile/build errors, ads not loading, callbacks not firing
-- **`references/migration-sdk-9.md`**: Migrating from IronSource or older LevelPlay APIs, upgrading the SDK to 9.x.x, migrating from Unity Ads, or Maven Central dependency build failures (Step 0)
+## Core Rules
 
-## Examples
-
-Read [examples](references/examples.md) when a short trace of the spine helps — it walks the revenue-focused, UX-focused, and existing-project asks.
-
-## Core Rules (reminder)
-
-These repeat the rules at the top of this file — they are the guardrails that matter most, restated here so they stay in view at the end of a long workflow:
+These guardrails are binding for every step:
 
 - Base editor-side checks on the actual project rather than assumptions — read the project files, or ask the user to confirm in the Editor. The C# scripts generated in this skill are MonoBehaviour files for the user to save to their project, not for inline execution.
 - This skill covers the LevelPlay integration path only; it does not cover other mediation SDKs. If the user explicitly asks about alternatives, acknowledge that alternatives exist and point them to those vendors' own documentation — do not describe, characterize, or make claims about competitor products.

@@ -74,3 +74,16 @@ The UGS CLI ships as a Unity CLI plugin, run as `unity ugs <command>`, to deploy
 Auto-generated REST clients for all UGS services, in four client types (`IGameClient`, `IAdminClient`, `IServerClient`, `ITrustedClient`). Use the high-level package SDKs by default; use Services APIs only for admin API access or when no package SDK covers the call.
 
 - **Full reference:** [references/apis.md](apis.md)
+
+## Package Minimum Versions
+
+| Package | Min Version | Purpose |
+|---|---|---|
+| `com.unity.services.core` | 1.16.0 | Initialization, dependency graph |
+| `com.unity.services.authentication` | 3.6.1 | Player sign-in and identity |
+| `com.unity.services.cloudcode` | 3.0.0 | Server-authoritative C# modules, authored in-project as `.ccmu`. The `2.10.x` line deploys legacy `.ccmr` only |
+| `com.unity.services.cloudsave` | 3.4.0 | Per-player and shared key-value storage |
+| `com.unity.remote-config` | 4.2.5 | Server-side game configuration |
+| `com.unity.services.deployment` | 1.7.2 | Deploy cloud resources from Editor |
+| `com.unity.services.tooling` | 1.4.1 | Access Control and Game Overrides |
+| `com.unity.services.apis` | 1.1.1 | Generated REST clients for all UGS services |
