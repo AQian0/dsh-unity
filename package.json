@@ -1,6 +1,6 @@
 {
   "name": "@aqian0/dsh-unity",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Unity game-development, monetization, and performance skills for DeepSeek Harness: 34 skills that load on demand, packaged as a DSH bundle.",
   "keywords": [
     "dsh-plugin",
@@ -13,7 +13,10 @@
     "url": "https://github.com/AQian0/dsh-unity/issues"
   },
   "license": "(MIT AND ISC AND LicenseRef-Unity-Companion-License)",
-  "author": "AQian",
+  "author": {
+    "name": "AQian",
+    "url": "https://github.com/AQian0"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AQian0/dsh-unity.git"
@@ -30,7 +33,13 @@
     "NOTICE.md",
     "CHANGELOG.md",
     "README.md",
-    "docs/design.md"
+    "README.en.md",
+    "docs/detail.en.md",
+    "docs/detail.zh.md",
+    "docs/frontmatter.md",
+    "docs/compatibility.md",
+    "docs/design.md",
+    "upstream.lock.json"
   ],
   "type": "module",
   "main": "lib/index.js",
