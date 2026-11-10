@@ -97,12 +97,22 @@ export interface RegistryOptions {
 /** The result of trying to register one agent. */
 export type RegistrationResult = 'registered' | 'unavailable' | 'skipped';
 
+/** What `/unity-status` reports for one agent's session. */
+export interface UnityStatus {
+  readonly cwd: string | undefined;
+  readonly facts: ProjectFacts | undefined;
+  readonly hidden: readonly HiddenSkill[];
+  readonly total: number;
+  readonly visible: number;
+}
+
 /** The registry handed to the plugin entry point. */
 export interface AgentRegistry {
   readonly reader: UnitySkillReader;
   size(): number;
   add(agent: AgentLike | undefined): Promise<RegistrationResult>;
   remove(agent: AgentLike | undefined): void;
+  status(agent: AgentLike | undefined): Promise<UnityStatus>;
   factsFor(cwd: string | undefined, signal?: AbortSignal): Promise<ProjectFacts | undefined>;
   projectSkillsFor(facts: ProjectFacts | undefined): Promise<Set<string>>;
   invalidateAll(): void;
@@ -385,11 +395,27 @@ export function createAgentRegistry(options: RegistryOptions): AgentRegistry {
     }
   }
 
+  async function status(agent: AgentLike | undefined): Promise<UnityStatus> {
+    const cwd = cwdOf(agent);
+    if (cwd === undefined) {
+      return { cwd: undefined, facts: undefined, hidden: [], total: 0, visible: 0 };
+    }
+    const result = await view(cwd, {});
+    return {
+      cwd,
+      facts: result.facts,
+      hidden: result.hidden,
+      total: result.candidates.length,
+      visible: result.candidates.filter((candidate) => candidate.invocation.modelInvocable).length,
+    };
+  }
+
   return {
     reader: skillReader,
     size: () => states.size,
     add,
     remove,
+    status,
     factsFor,
     projectSkillsFor: overridesFor,
     invalidateAll() {

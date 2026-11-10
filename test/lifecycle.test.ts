@@ -9,6 +9,8 @@ import type { PluginConfig } from '../src/index.ts';
 import type {
   AgentLike,
   AgentsService,
+  CommandDefinition,
+  CommandInvocation,
   PluginContext,
   PromptContext,
   SkillProvider,
@@ -47,13 +49,20 @@ interface AgentFake extends AgentLike {
 interface HarnessRecord {
   globalProviders: SkillProvider[];
   handlers: Map<string, (...args: unknown[]) => unknown>;
+  commands: CommandDefinition[];
   warnings: string[];
   cleanup: (() => void) | undefined;
 }
 
 /** A fake plugin context that records registrations. */
 function createHarness(agents: AgentsService | undefined): { ctx: PluginContext; record: HarnessRecord } {
-  const record: HarnessRecord = { globalProviders: [], handlers: new Map(), warnings: [], cleanup: undefined };
+  const record: HarnessRecord = {
+    globalProviders: [],
+    handlers: new Map(),
+    commands: [],
+    warnings: [],
+    cleanup: undefined,
+  };
   const ctx = {
     logger: { warn: (message: string) => record.warnings.push(message) },
     skills: {
@@ -62,7 +71,21 @@ function createHarness(agents: AgentsService | undefined): { ctx: PluginContext;
         return () => {};
       },
     },
-    get: (name: string): unknown => (name === 'agents' ? agents : undefined),
+    get: (name: string): unknown => {
+      if (name === 'agents') return agents;
+      if (name === 'commands') {
+        return {
+          register: (definition: CommandDefinition) => {
+            record.commands.push(definition);
+            return () => {
+              const index = record.commands.indexOf(definition);
+              if (index >= 0) record.commands.splice(index, 1);
+            };
+          },
+        };
+      }
+      return undefined;
+    },
     on: (event: string, listener: (...args: unknown[]) => unknown) => {
       record.handlers.set(event, listener);
       return () => record.handlers.delete(event);
@@ -412,4 +435,34 @@ test('fs/observed invalidates only for SKILL.md files under the skill directory'
   listener({ displayPath: join(tmpdir(), 'elsewhere', 'SKILL.md') }, { kind: 'present' }, undefined);
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(agent.invalidations, afterSkill, 'resource files and foreign paths do not change discovery');
+});
+
+test('/unity-status reports the detected project and hidden skills', async () => {
+  const root = await createProject();
+  const { ctx, record } = createHarness({ list: () => [] });
+  apply(ctx, CONFIG);
+  const agent = createAgent('s-status', root);
+  try {
+    await created(record, agent);
+    const definition = record.commands.find((command) => command.name === 'unity-status');
+    assert.ok(definition);
+    const invocation: CommandInvocation = {
+      agent,
+      rawInput: '',
+      signal: new AbortController().signal,
+    };
+    const result = await definition.handler(invocation);
+    assert.equal(result.kind, 'success');
+    const text = result.kind === 'success' ? (result.text ?? '') : '';
+    assert.match(text, new RegExp(`Unity project: ${root}`));
+    assert.match(text, /build-gtk \(needs Unity >=6000\.6/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('the status command can be switched off', () => {
+  const { ctx, record } = createHarness({ list: () => [] });
+  apply(ctx, { ...CONFIG, statusCommand: false });
+  assert.equal(record.commands.length, 0);
 });

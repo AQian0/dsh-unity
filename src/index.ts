@@ -27,8 +27,9 @@ import { createAgentRegistry, createGlobalProvider, serviceOf } from './registry
 import type { RegistrySettings } from './registry.ts';
 import { createParseCache } from './skills.ts';
 import type { ParseCache } from './skills.ts';
+import { renderStatus } from './status.ts';
 import { startSkillsWatcher } from './watch.ts';
-import type { AgentLike, AgentsService, FsTarget, PluginContext } from './harness.ts';
+import type { AgentLike, AgentsService, CommandsService, FsTarget, PluginContext } from './harness.ts';
 
 /** Loader row name. */
 export const name = 'unity-skills';
@@ -152,6 +153,24 @@ export function apply(ctx: PluginContext, config: PluginConfig = {}): void {
   }
 
   disposers.push(ctx.on('fs/observed', onFsObserved));
+
+  const commands = serviceOf<CommandsService>(ctx, 'commands');
+  if (settings.statusCommand && commands !== undefined) {
+    disposers.push(
+      commands.register({
+        name: 'unity-status',
+        description:
+          'Show the detected Unity project, editor and package state, and the skills hidden for this project',
+        handler: async (invocation) => {
+          try {
+            return { kind: 'success', text: renderStatus(await registry.status(invocation.agent)) };
+          } catch (error) {
+            return { kind: 'error', text: `unity-status failed: ${String(error)}` };
+          }
+        },
+      }),
+    );
+  }
 
   if (settings.watchSkills) {
     disposers.push(

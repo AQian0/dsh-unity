@@ -74,6 +74,30 @@ export interface FsTarget {
   readonly displayPath: string;
 }
 
+/** `CommandInvocation` from the `commands` service, narrowed to what the plugin uses. */
+export interface CommandInvocation {
+  readonly agent: AgentLike;
+  readonly rawInput: string;
+  readonly signal: AbortSignal;
+}
+
+/** `CommandResult` from the `commands` service. */
+export type CommandResult =
+  | { readonly kind: 'success'; readonly text?: string }
+  | { readonly kind: 'error'; readonly text: string };
+
+/** `CommandDefinition` from the `commands` service. */
+export interface CommandDefinition {
+  readonly name: string;
+  readonly description: string;
+  readonly handler: (invocation: CommandInvocation) => CommandResult | Promise<CommandResult>;
+}
+
+/** The `commands` registry surface this plugin touches. */
+export interface CommandsService {
+  register(definition: CommandDefinition): () => void;
+}
+
 /** Options the registry passes to discovery and loading. */
 export interface SkillLookupOptions {
   readonly cwd?: string | undefined;
