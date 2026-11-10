@@ -5,11 +5,11 @@
 # gets the skills its own Unity project supports; `skills/` is this package's
 # content.
 #
-# The row needs no config. Defaults: providerName "unity"; rank 240, which only
-# orders this provider against runtime registrations in the same layer; project
-# gating on, leaving three workspace skills visible outside a Unity project;
-# requirement enforcement, runtime context, and skill watching on; project skill
-# roots taking precedence over this package. Override the row to change them:
+# The row needs no config. Defaults: providerName "unity"; rank 600, the
+# bundled-root convention (a project or custom root in the same layer wins a
+# duplicate name); project gating on, leaving three workspace skills visible
+# outside a Unity project; requirement enforcement, runtime context, skill
+# watching and the /unity-status command on. Override the row to change them:
 #
 #   - id: unity-skills
 #     name: '@aqian0/dsh-unity'

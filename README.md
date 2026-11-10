@@ -298,7 +298,7 @@ artifact、生成 `upstream-report.md` 并开/更新一个 PR；**不会自动�
 
 ## 已知限制
 
-- **正文体积有硬约束**：载入的 `SKILL.md` 是工具结果，DSH 的 `tool-result-pruner` 在压缩触发后会把超过 **8192 字符**的结果裁成 head + tail，所以 `SKILL.md` 只做路由——判断、关键安全规则、步骤、指向 `references/` 的链接；细节都放在 `references/` 里按需读取。34 个技能的正文都朝 **7000 字符**以内整理，校验脚本在超过 7000 时告警、超过 8192 时失败。新增或改写技能时请沿用这个结构，否则该技能在长会话里会被裁断。
+- **正文体积有硬约束**：载入的 `SKILL.md` 是工具结果，DSH 的 `tool-result-pruner` 在压缩触发后会把超过 **8192 字符**的结果裁成 head + tail，所以 `SKILL.md` 只做路由——判断、关键安全规则、步骤、指向 `references/` 的链接；细节都放在 `references/` 里按需读取。34 个技能的正文都朝 **7000 字符**以内整理，校验脚本在超过 7000 时告警、超过 8192 时失败。新增或改写技能时请沿用这个结构，否则该技能在长会话里会被裁断。`fix-3d-physics-collisions` 为逐字保留 STOP CHECK 的安全文案，正文 7.78k：低于 8192 硬限，但会保留一条 7000 告警。
 - **文件监视有边界**：watcher 只关心 `SKILL.md` 的变化（新增、删除、改名、编辑），并按 200ms 防抖合并突发写入；`references/` 等资源文件靠加载时读取，不需要刷新。平台或沙箱不允许监视时，会记录一条警告并退回"重启后生效"。
 - **回退到全局 provider 时会退步**：如果某个 profile 里 `agent.ctx` 够不到 `skills`（或没有 `agents` 服务），插件只注册一份全局 provider，并记录一条警告。这条路径仍按每次查询的 `cwd` 做工程门控，但没有 `unity:project` 上下文，且同名的预设层技能会重新胜出。
 - **非 Unity 会话只提供 3 个技能**：默认 `workspaceSkills` 是 `new-unity-project`、`unity-cli`、`unity-package-management`；需要别的技能就显式点名，或用 `workspaceSkills` 调整。
