@@ -34,6 +34,7 @@ function candidate(name: string, requirements: SkillRequirements = { packages: [
 
 const modernProject: ProjectFacts & { packages: Map<string, string> } = {
   root: '/Project',
+  dshRoot: '/Project',
   editorVersion: '6000.3.14f1',
   packages: new Map([['com.unity.ugui', '2.0.0']]),
   renderPipeline: 'builtin',
