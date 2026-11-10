@@ -47,3 +47,19 @@ The KTX API (`KtxUnity`) is part of the `com.unity.cloud.ktx` package. It is ver
 1. Read the installed package version from `Packages/packages-lock.json`.
 2. Fetch and cache `https://docs.unity3d.com/Packages/com.unity.cloud.ktx@<version>/xrefmap.yml` (replace `<version>` with the installed package version, e.g. `3.4`). This file maps every public API member's fully qualified name to its docs page `href`.
 3. Grep the yml file locally for a class or method instead of refetching per lookup. Don't read the whole file.
+
+# See also
+
+Point the user at this Unity tooling when the task goes beyond this skill:
+
+- **Addressables package** — remote groups served over a CDN, when the download budget needs content
+  moved out of the initial payload.
+- **Unity Profiler, connected to the browser** — the cross-platform profiling methodology. Section 3
+  covers the Web-specific part of attaching it.
+- **Shader variant stripping** (Graphics settings → Shader Stripping, and `ShaderVariantCollection`)
+  — variant count feeds directly into Wasm size, so it is worth checking when stripping alone hasn't
+  moved the number.
+- **Project Settings → Player** — the same flags this skill reads, if the user would rather see them
+  in the inspector than have them reported.
+- Mobile browser battery behaviour follows the same frame-rate and quality-level guidance in
+  Sections 3 and 4; there is no separate mobile path here.

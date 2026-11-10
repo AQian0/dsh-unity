@@ -148,3 +148,49 @@ var previous = data.renderPostProcessing;         // report: previous = false
 
 Scene and prefab files are text-serialized, so version control is the last resort, not the
 first answer — offer the scoped revert before pointing at `git`.
+
+### Pre-Flight Setup Verification
+
+Run this before configuring any effect. A hard stop `throw`s, so the eval fails loudly; everything
+else is collected into the returned report.
+
+```csharp
+// `script eval` compiles a statement block, not a file: no `using` directives are
+// allowed, so every type is fully qualified.
+var report = new System.Text.StringBuilder();
+
+// 1. Check URP is active — a hard stop, so throw: it fails the eval loudly
+var urpAsset = UnityEngine.Rendering.Universal.UniversalRenderPipeline.asset;
+if (urpAsset == null)
+    throw new System.Exception("URP is not the active render pipeline.");
+
+// 2. Check HDR
+if (!urpAsset.supportsHDR)
+    report.AppendLine("Warning: HDR is disabled on the URP Asset. Tonemapping won't work; Bloom requires threshold < 1.");
+
+// 3. Check camera post-processing
+var cam = UnityEngine.Camera.main;
+if (cam == null)
+    throw new System.Exception("No Main Camera found.");
+if (!cam.TryGetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>(out var camData))
+    throw new System.Exception("Missing UniversalAdditionalCameraData on camera. Is URP active?");
+if (!camData.renderPostProcessing)
+    report.AppendLine("Warning: Post-processing is disabled on the camera. Enable via camData.renderPostProcessing = true.");
+
+// 4. Check volume layer mask
+var volumes = UnityEngine.Object.FindObjectsByType<UnityEngine.Rendering.Volume>(UnityEngine.FindObjectsSortMode.None);
+foreach (var vol in volumes)
+{
+    if (!vol.enabled) { report.AppendLine($"Warning: Volume '{vol.name}' is disabled."); continue; }
+    if ((camData.volumeLayerMask & (1 << vol.gameObject.layer)) == 0)
+        report.AppendLine($"Warning: Volume '{vol.name}' on layer {vol.gameObject.layer} is not in camera's volumeLayerMask.");
+    // 5. Check profile and overrides
+    var profile = vol.sharedProfile;
+    if (profile == null) { report.AppendLine($"Warning: Volume '{vol.name}' has no profile assigned."); continue; }
+    if (profile.components.Count == 0)
+        report.AppendLine($"Warning: Volume '{vol.name}' profile has no overrides.");
+}
+
+// Return the findings: logs land in the Editor console, the returned value comes back to you
+return report.Length == 0 ? "Post-processing setup looks correct." : report.ToString();
+```

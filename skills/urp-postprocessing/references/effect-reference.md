@@ -84,3 +84,15 @@
 - `redOutRedIn` (default 100), `redOutGreenIn` (default 0), `redOutBlueIn` (default 0).
 - `greenOutRedIn` (default 0), `greenOutGreenIn` (default 100), `greenOutBlueIn` (default 0).
 - `blueOutRedIn` (default 0), `blueOutGreenIn` (default 0), `blueOutBlueIn` (default 100).
+
+## Common Recipes
+
+Format: Effect property=value. Bloom values are threshold/intensity/scatter.
+
+**Cinematic (Film):** Tonemapping mode=ACES, ColorAdjustments contrast=15 saturation=-10, Bloom threshold=0.9 intensity=0.5 scatter=0.7, Vignette intensity=0.3 smoothness=0.4, FilmGrain type=Medium1 intensity=0.2
+
+**Stylized/Vibrant:** Tonemapping mode=Neutral, ColorAdjustments saturation=20 contrast=10, Bloom threshold=0.8 intensity=1.5 scatter=0.6, SplitToning highlights=warm shadows=cool
+
+**Horror/Dark:** ColorAdjustments postExposure=-0.5 saturation=-30 contrast=20, Vignette intensity=0.5 smoothness=0.3 color=dark-red, FilmGrain type=Large01 intensity=0.4, ChromaticAberration intensity=0.15
+
+**Clean/Mobile:** Tonemapping mode=Neutral, ColorAdjustments postExposure=0.2, Bloom threshold=1.0 intensity=0.3 (subtle). Avoid FilmGrain, MotionBlur, DepthOfField on mobile.

@@ -34,3 +34,14 @@ The API is the `TMPro` namespace (for example `TMP_FontAsset`, `TextMeshPro`, `T
 3. Grep the yml file locally for a class or method instead of refetching per lookup. Don't read the whole file.
 
 Always fetch the version matching the installed package rather than relying on training knowledge, since APIs are frequently marked obsolete between major versions.
+
+## Which package holds the TMP docs
+
+For TextMeshPro, if `com.unity.ugui` is 2.0 or later, TMP is part of uGUI and its docs are in the `com.unity.ugui` package; otherwise they are in the `com.unity.textmeshpro` package. Use the one listed in `Packages/packages-lock.json`.
+
+## Substituting the version in doc URLs
+
+Prefer `WebFetch` over `WebSearch` — faster and lands on the exact reference. Only fetch what you need. Replace `<VERSION>` with the following before fetching:
+
+- **Package on docs.unity3d.com**: The package version, eg `@6.6` or `@2.0`. Check the package version if unsure.
+- **Engine on docs.unity.com**: The Unity version, eg `6000.3`

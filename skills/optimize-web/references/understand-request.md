@@ -17,3 +17,17 @@
 | "video not playing" / "audio issues" | Video: URL-only or StreamingAssets; Audio: no AudioEffects on Web, use Mono, compress |
 | "profiler symbols" / "can't read Wasm stacks" | Embed profiling symbols via build processor or emscriptenArgs |
 | "iOS crashes" / "Safari memory" | iOS memory limits; set Initial Memory Size high rather than growing; Gigacage 2GB limit pre-iOS 18 |
+
+## Project context and defaults
+
+Read the Unity version from `ProjectSettings/ProjectVersion.txt`, and the versions of the packages
+you need (`com.unity.cloud.ktx`, `com.unity.addressables`, `com.unity.web.stripping-tool`) from
+`Packages/packages-lock.json`.
+
+- If there's no project, assume Unity `6000.0`.
+- For any package not listed in `packages-lock.json`, assume the latest version in that package's
+  documentation.
+- Preserve every version you do find — only default the values that are actually missing.
+- Name each assumption in your report and carry on.
+- If the user hasn't said what to optimize and there's no project to read, ask what they want to
+  improve.

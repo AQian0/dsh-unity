@@ -14,25 +14,13 @@ description: Optimizes TextMeshPro rendering, memory, and font setup, including 
 - Never leave verification code in the user's script; never build logging or detection they didn't ask for. See [Final step](#final-step).
 - Avoid long explanations.
 
-First, read the Unity version from `ProjectSettings/ProjectVersion.txt` and the `com.unity.ugui` or `com.unity.textmeshpro` version from `Packages/packages-lock.json`, because the doc URLs and some advice depend on them. For example, before you recommend Dynamic OS, check that `TMPro.AtlasPopulationMode.DynamicOS` exists in the installed package's [API reference](#api-reference), because older `com.unity.textmeshpro` versions don't have it.
+First, read the Unity version from `ProjectSettings/ProjectVersion.txt` and the `com.unity.ugui` or `com.unity.textmeshpro` version from `Packages/packages-lock.json`, because the doc URLs and some advice depend on them.
 
-Before you go forward with a workflow or diagnosis:
-
-1. Open and read the [documentation page(s)](#full-topic-map) that cover the specific subject related to what you intend to do or fix and check if you've missed anything.
-2. Name the file(s) you read in your response.
-
-This is because your training knowledge about Unity might be out of date, incorrect, or for the wrong Unity version.
-
-Prefer `WebFetch` over `WebSearch` — faster and lands on the exact reference. Only fetch what you need. Replace `<VERSION>` with the following before fetching:
-
-- **Package on docs.unity3d.com**: The package version, eg `@6.6` or `@2.0`. Check the package version if unsure.
-- **Engine on docs.unity.com**: The Unity version, eg `6000.3`
-
-For TextMeshPro, if `com.unity.ugui` is 2.0 or later, TMP is part of uGUI and its docs are in the `com.unity.ugui` package; otherwise they are in the `com.unity.textmeshpro` package. Use the one listed in `Packages/packages-lock.json`.
+Before you go forward with a workflow or diagnosis, read the [documentation page(s)](#full-topic-map) that cover the specific subject you intend to work on, check if you've missed anything, and name the file(s) you read in your response, because your training knowledge about Unity might be out of date, incorrect, or for the wrong Unity version.
 
 ## Full topic map
 
-Docs pages, API entry points, and glossary: [references/topic-map.md](references/topic-map.md).
+Docs pages, API entry points, glossary and the doc URL version rules: [references/topic-map.md](references/topic-map.md).
 
 ## API reference
 
@@ -41,23 +29,26 @@ Read [API reference](references/topic-map.md#api-reference) before relying on a 
 ## Workflow
 
 1. Read the Unity version and the `com.unity.ugui` or `com.unity.textmeshpro` version, as described above.
-2. Read the doc pages that cover the area you'll work on, as described above.
+2. Read the doc pages that cover the area you'll work on.
 3. Identify the symptom with the [Triage](#triage--identify-the-symptom-first) table, asking the user if they haven't described one.
-4. Follow the matching section. Give advice by default, and change settings only when the user asks you to, because many of these settings change memory use or build size for the whole project. Before you change anything, create a restore point.
+4. Follow the matching section in [references/tuning-and-quality.md](references/tuning-and-quality.md) or [references/dynamic-atlas-and-profiling.md](references/dynamic-atlas-and-profiling.md). Give advice by default and change settings only when the user asks, because many of them change memory use or build size for the whole project; create a restore point before you change anything.
 5. Run the [Final step](#final-step), then give the [Final report](#final-report).
 
 ## Triage — identify the symptom first
 
-Before providing tips, identify which category the user's issue falls into. If the user has not described a specific symptom, ask: "Are you seeing a **memory/atlas bloat**, **visual quality**, **CPU/performance**, **build size**, or **localization/alignment** issue with TextMeshPro?"
+Before providing tips, identify which category the user's issue falls into. If they haven't described one, ask: "Are you seeing a **memory/atlas bloat**, **visual quality**, **CPU/performance**, **build size**, or **localization/alignment** issue with TextMeshPro?"
+
+These three sections are in [references/dynamic-atlas-and-profiling.md](references/dynamic-atlas-and-profiling.md): Memory Profiler: Include Font Data, Dynamic OS Atlas Population, Worldspace vs Canvas Text. Every other section in the table is in [references/tuning-and-quality.md](references/tuning-and-quality.md).
 
 | Symptom | Go To |
 |---|---|
-| Memory Profiler shows large or multiple TMP atlases | [Font Stack & Dynamic Fallbacks](#font-stack--dynamic-fallbacks), [Memory Profiler: Include Font Data](#memory-profiler-include-font-data) |
-| Inconsistent glyph weight, fuzzy edges, visual quality | [Padding & Sampling Ratios](#padding--sampling-ratios), [Font Asset Scale](#font-asset-scale), [Atlas Render Mode: SDF16](#atlas-render-mode-sdf16) |
-| CPU spikes during text updates or Canvas rebuilds | [AutoSize](#autosize), [Worldspace vs Canvas Text](#worldspace-vs-canvas-text) |
-| Build size too large from shipped font files | [Dynamic OS Atlas Population](#dynamic-os-atlas-population) |
-| Mixed Latin + CJK alignment looks off | [Font Normalization](#font-normalization) |
-| Need multiple font styles (italic, outline, glow) | [Material Presets](#material-presets) |
+| Memory Profiler shows large or multiple TMP atlases | Font Stack & Dynamic Fallbacks, Memory Profiler: Include Font Data |
+| Inconsistent glyph weight, fuzzy edges, visual quality | Padding & Sampling Ratios, Font Asset Scale, Atlas Render Mode: SDF16 |
+| CPU spikes during text updates or Canvas rebuilds | AutoSize, Worldspace vs Canvas Text |
+| Build size too large from shipped font files | Dynamic OS Atlas Population |
+| Mixed Latin + CJK alignment looks off | Font Normalization |
+| Need multiple font styles (italic, outline, glow) | Material Presets |
+| Slow loading of TMP Sprite Assets on mobile | Sprite Assets |
 
 ---
 
@@ -76,99 +67,19 @@ Before providing tips, identify which category the user's issue falls into. If t
 
 ---
 
-## Font Stack & Dynamic Fallbacks
-
-If the user reports memory bloat from TMP atlases, advise this font stack pattern:
-
-```
-Main font asset (static, all required Latin glyphs baked)
-  -> Fallback 1: Dynamic font (atlas 512 or 1024) for CJK
-  -> Fallback 2: Dynamic font for symbols / emoji
-```
-
-Don't use one dynamic font asset for every language, because its atlas keeps growing with every glyph the game uses. Check `Clear Dynamic Data On Build` on each dynamic fallback, as the Core Rules say (see `FontAssets.md`).
-
----
-
-## Padding & Sampling Ratios
-
-If the user reports inconsistent stroke widths or glyph weight differences between primary and fallback fonts, check the padding-to-sampling-point-size ratio.
-
-The ratio is `Padding / SamplingPointSize`. With Padding = 9 and Sampling Point Size = 90, ratio = **10%**.
-
-- A primary font with one ratio and a fallback with a different ratio produces **inconsistent stroke widths** on the same line.
-- Pick a ratio (10% is a safe default), apply it to all font assets in the chain.
-
-Recommended sampling point sizes:
-
-- **Latin scripts**: 70-90.
-- **CJK scripts**: 36-50 (CJK glyphs are visually denser; smaller sampling sizes still produce clean SDF and save atlas memory).
-
----
-
-## Font Asset Scale
-
-If the user reports point sizes not matching design specs, check the font asset Scale value. Some imported TMP font assets ship with `Scale = 0.9` instead of `1.0`. A non-1 Scale changes every rendered point size (see `FontAssetsProperties.md`). Advise the user to **set Scale = 1 on all font assets before adjusting padding ratios**.
-
----
-
-## Sprite Assets
-
-For the source texture settings a Sprite Asset needs, read `Sprites.md` (see the [Full topic map](#full-topic-map)). If the user reports slow loading times for TMP Sprite Assets on mobile, check the source texture's Texture Type, and suggest setting it back to **Default** once the Sprite Asset is created, because Sprite type keeps child sprite sub-objects that TMP doesn't use.
-
----
-
-## AutoSize
-
-If the user reports CPU spikes on text fields that change frequently (timers, counters, chat, dynamic player names), check whether `enableAutoSizing` is on. AutoSize resizes the text whenever the string changes, causing constant CPU spikes.
-
-Advise: **disable AutoSize and hard-code the chosen point size** once layout is locked. Keep AutoSize on only for genuinely static labels that auto-fit on locale change.
-
----
-
-## Atlas Render Mode: SDF16
-
-If a static font with point size **72 or larger** looks unclear or has fuzzy edges, advise switching the **Atlas Render Mode** to **SDF16**. Higher precision SDF for big glyphs, at slightly more atlas memory.
-
----
-
-## Font Normalization
-
-If the user reports misaligned Latin + CJK text on the same line, compare the line metrics of the primary and fallback font assets, and advise adjusting the fallback's ascender and descender until they match the primary's. Read `FontAssetsLineMetrics.md` (see the [Full topic map](#full-topic-map)) for what each metric controls.
-
-To show the lines in the scene, the `TMP_TextInfoDebugTool` component from TMP Examples & Extras draws them. Ask the user before importing Examples & Extras, because it adds unrelated example assets to the project.
-
----
-
-## Material Presets
-
-If the user needs multiple styles (italic, bold, outline, glow) of the same font, advise material presets instead of duplicating font assets. Presets share the same font texture but override shader parameters. For the Material Preset property on the text component, read `TMPObjectUIText.md`, and for the shader settings a preset can override, read `Shaders.md` (see the [Full topic map](#full-topic-map)).
-
----
-
-## Dynamic atlases, profiling, worldspace text
-
-### Dynamic OS Atlas Population
-
-### Memory Profiler: Include Font Data
-
-### Worldspace vs Canvas Text
-
-Read [dynamic atlases, profiling, and worldspace text](references/dynamic-atlas-and-profiling.md) when build size, font-data memory, or worldspace Canvas text is in play.
-
 ## Final step
 
-Do the following checks:
+Do these checks:
 
 1. Check the project has zero console errors. Use `console_status` for counts.
 2. Stop there unless the user asked you to prove it works or you suspect a specific fault.
 3. If you do enter Play mode, do it once only to chase a fault you already suspect. Read the world through `eval` rather than adding logging. Take no screenshots as they take too much time.
 
-If a check fails, go back and reread the [docs pages](#full-topic-map) to find out what you missed.
+If a check fails, reread the [docs pages](#full-topic-map) to find what you missed.
 
 If you changed settings, also read them back through the API, because an Inspector or script change can fail to save. For example: `TMP_FontAsset.atlasPopulationMode`, `m_ClearDynamicDataOnBuild` (through `SerializedObject`), the font asset's `faceInfo.scale`, `enableAutoSizing` on the text component, `TrueTypeFontImporter.includeFontData`, and `TextureImporter.textureType` for a sprite source texture. If a value doesn't match what you set, set it again and read it back.
 
-If you changed settings to reduce memory or build size, compare a measurable result before and after, because a saved setting doesn't prove the problem is gone. For example, record the number and dimensions of `TMP_FontAsset.atlasTextures` for each font asset in the stack before your change, and read them again after. If the result didn't improve, reread the [docs pages](#full-topic-map), and say so in the final report rather than claiming a fix.
+If you changed settings to reduce memory or build size, compare a measurable result before and after, because a saved setting doesn't prove the problem is gone. For example, record each font asset's `TMP_FontAsset.atlasTextures` count and dimensions before and after your change. If the result didn't improve, reread the [docs pages](#full-topic-map), and say so in the final report rather than claiming a fix.
 
 ## Final report
 

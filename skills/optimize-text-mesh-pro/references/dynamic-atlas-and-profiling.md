@@ -2,6 +2,8 @@
 
 If the user is shipping multilingual builds and concerned about build size, advise evaluating **`Atlas Population Mode = Dynamic OS`**. Read the Dynamic OS font asset section of [Font assets](https://docs.unity.com/en-us/engine/<VERSION>/manual/uitoolkits/uielements/uie-work-with-text/uie-font-asset/uie-font-asset.md) for what it changes in the build. The TMP package manual doesn't cover Dynamic OS, but this page covers the font assets that TMP and UI Toolkit share.
 
+Before you recommend Dynamic OS, check that `TMPro.AtlasPopulationMode.DynamicOS` exists in the installed package's [API reference](topic-map.md#api-reference), because older `com.unity.textmeshpro` versions don't have it.
+
 At runtime, Dynamic OS looks for a device font with the same Family and Style name as the source font, so choose a source font whose name exists on each target platform. Recommended system fonts for CJK:
 
 | Platform | Recommended system font |

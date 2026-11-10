@@ -37,3 +37,13 @@ Configure the server to:
 - Enable HTTP/2 or HTTP/3 to parallelize chunk fetches.
 
 If the host cannot inject `Content-Encoding`: set **Decompression Fallback = On** as a fallback only — it adds ~150 KB JS and slows startup.
+
+# Exception handling
+
+| Setting | Build size | Use |
+|---|---|---|
+| **None** | Smallest | Release builds where uncaught exceptions are acceptable |
+| **Explicitly Thrown Only** | Modest | Default for projects that catch exceptions |
+| **Full** | Largest, slowest | Rarely needed; avoid for release |
+
+Wasm 2023 introduces a cheaper exception model; switching from Explicitly Thrown Only (legacy) to Wasm exceptions reduces both size and cost when browser targets support it.
