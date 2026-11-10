@@ -248,8 +248,9 @@ test('config is validated before anything registers', () => {
   assert.throws(() => resolveSettings({ gateByProject: 'yes' as never }), /must be a boolean/);
   assert.throws(() => resolveSettings({ enforceRequirements: 1 as never }), /must be a boolean/);
   const defaults = resolveSettings({});
-  assert.equal(defaults.rank, 240);
+  assert.equal(defaults.rank, 600);
   assert.equal(defaults.gateByProject, true);
+  assert.equal(defaults.statusCommand, true);
   assert.deepEqual([...defaults.workspaceSkills].sort(), [
     'new-unity-project',
     'unity-cli',

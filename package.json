@@ -66,11 +66,19 @@
     "validate": "node scripts/validate-skills.ts"
   },
   "devDependencies": {
+    "@deepseek-ai/schemastery": "3.19.0",
+    "@types/js-yaml": "4.0.9",
     "@types/node": "26.6.5",
+    "js-yaml": "4.3.2",
     "typescript": "7.0.2",
     "vite-plus": "1.5.0"
   },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-skill": "^0.2.2-rc.1",
+    "@deepseek-ai/schemastery": "~3.19.0"
+  },
   "engines": {
+    "dsh": ">=0.2.2-rc.1 <1.0.0",
     "node": ">=22.18"
   },
   "packageManager": "pnpm@12.16.1",

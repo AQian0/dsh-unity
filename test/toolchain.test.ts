@@ -32,6 +32,8 @@ interface PackageJson {
   packageManager?: string;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  engines?: Record<string, string>;
   files?: string[];
   scripts?: Record<string, string>;
 }
@@ -158,6 +160,29 @@ test('the package declares no runtime dependencies', () => {
     packageJson.dependencies,
     undefined,
     'package.json must not declare "dependencies": the plugin runs inside the harness and ships its toolchain as devDependencies',
+  );
+});
+
+test('the package declares the DSH runtime and peer packages it needs', () => {
+  assert.match(
+    packageJson.engines?.dsh ?? '',
+    />=0\.2\.2-rc\.1/,
+    'package.json engines.dsh must state the DSH range the plugin was built against',
+  );
+  assert.equal(
+    packageJson.peerDependencies?.['@deepseek-ai/dsh-skill'],
+    '^0.2.2-rc.1',
+    'the skill registry contract is a peer: the plugin must not bundle its own copy',
+  );
+  assert.equal(
+    packageJson.peerDependencies?.['@deepseek-ai/schemastery'],
+    '~3.19.0',
+    'Config is a schemastery schema; the harness supplies the runtime copy',
+  );
+  assert.equal(
+    packageJson.devDependencies?.['@deepseek-ai/schemastery'],
+    '3.19.0',
+    'the build and tests still need a concrete schemastery version',
   );
 });
 

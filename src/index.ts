@@ -22,6 +22,7 @@
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { DEFAULT_PROVIDER_NAME, DEFAULT_RANK, DEFAULT_WORKSPACE_SKILLS } from './config.ts';
 import { createAgentRegistry, createGlobalProvider, serviceOf } from './registry.ts';
 import type { RegistrySettings } from './registry.ts';
 import { createParseCache } from './skills.ts';
@@ -35,27 +36,7 @@ export const name = 'unity-skills';
 /** The skill registry this provider attaches to. */
 export const inject = ['skills'];
 
-/** Provider name the registry lists the catalog under. */
-export const DEFAULT_PROVIDER_NAME = 'unity';
-
-/**
- * Default rank inside one scope layer. The catalog normally lands in the agent's
- * own layer, where the nearest layer already wins duplicates; the rank only
- * orders this provider against runtime (`ctx.skills.register()`) registrations,
- * which use 250.
- */
-export const DEFAULT_RANK = 240;
-
-/**
- * Skills worth showing outside a Unity project: creating a project, driving the
- * editor from the CLI, and managing packages are all meaningful before a project
- * exists.
- */
-export const DEFAULT_WORKSPACE_SKILLS: readonly string[] = [
-  'new-unity-project',
-  'unity-cli',
-  'unity-package-management',
-];
+export { Config, DEFAULT_PROVIDER_NAME, DEFAULT_RANK, DEFAULT_WORKSPACE_SKILLS } from './config.ts';
 
 /** Provider name reserved by the registry for per-agent runtime registrations. */
 const RESERVED_PROVIDER = 'runtime';
@@ -75,11 +56,13 @@ export interface PluginConfig {
   readonly injectContext?: boolean;
   readonly watchSkills?: boolean;
   readonly respectProjectRoots?: boolean;
+  readonly statusCommand?: boolean;
 }
 
 /** Normalized settings, with the parse cache attached by {@link apply}. */
 export interface ResolvedSettings extends RegistrySettings {
   readonly watchSkills: boolean;
+  readonly statusCommand: boolean;
   parseCache: ParseCache | undefined;
 }
 
@@ -187,7 +170,7 @@ export function resolveSettings(config: PluginConfig): ResolvedSettings {
     providerName,
     rank,
     source: 'unity',
-    skillDir: resolve(skillDirConfig),
+    skillDir: resolve(PACKAGE_DIR, skillDirConfig),
     exclude: new Set(exclude ?? []),
     workspaceSkills: new Set(workspaceSkills),
     gateByProject: readBoolean(config.gateByProject, 'gateByProject', true),
@@ -195,6 +178,7 @@ export function resolveSettings(config: PluginConfig): ResolvedSettings {
     injectContext: readBoolean(config.injectContext, 'injectContext', true),
     watchSkills: readBoolean(config.watchSkills, 'watchSkills', true),
     respectProjectRoots: readBoolean(config.respectProjectRoots, 'respectProjectRoots', true),
+    statusCommand: readBoolean(config.statusCommand, 'statusCommand', true),
     parseCache: undefined,
   };
 }
