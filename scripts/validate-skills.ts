@@ -23,6 +23,8 @@
 import { readdir, readFile, stat, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 
+import { load as loadYaml } from 'js-yaml';
+
 import { SKILL_NAME, parseSkillMarkdown, splitFrontmatter } from '../src/frontmatter.ts';
 import { readRequirements, satisfiesRange } from '../src/requirements.ts';
 import { createUnitySkillReader } from '../src/skills.ts';
@@ -43,7 +45,7 @@ interface SkillRow {
   description: string;
   descriptionLength: number;
   extras: string[];
-  bodyBytes: number;
+  bodyChars: number;
   requirements?: string[];
   readonly file: string;
 }
@@ -53,6 +55,7 @@ interface CliOptions {
   skillsDir: string;
   report?: string;
   positional?: string;
+  only?: string[];
   help: boolean;
 }
 
@@ -83,8 +86,18 @@ interface Summary {
 /** Frontmatter keys the DSH skill provider understands itself. */
 const STANDARD_KEYS = new Set(['name', 'description', 'whenToUse', 'disable-model-invocation', 'user-invocable']);
 
-/** Warn when one SKILL.md exceeds this many bytes (the pruner trims above 8192 chars). */
-const BODY_SIZE_WARN_BYTES = 16384;
+/**
+ * The DSH tool-result pruner trims any result above 8192 code points once a
+ * compaction trigger qualifies, so a skill body must stay below that line.
+ * Keep a margin for the `<skill_content>` wrapper and resource guidance.
+ */
+const BODY_SIZE_FAIL_CHARS = 8192;
+
+/** Warn earlier so a body does not drift up to the hard limit unnoticed. */
+const BODY_SIZE_WARN_CHARS = 7000;
+
+/** `dsh-tool-skill` caps a catalog description at 500 characters by default. */
+const DESCRIPTION_WARN_CHARS = 500;
 
 /** Directory prefixes that make a reference unambiguously skill-relative. */
 const RESOURCE_PREFIX = /^(?:references|scripts|assets|examples|resources)\//;
@@ -219,11 +232,20 @@ async function main(): Promise<number> {
   for (const entry of rootFiles) {
     warn(join(skillsDir, entry.name), 'layout', 'file is not a skill folder and is not served by the provider');
   }
-  const folders = [];
+  const folders: string[] = [];
   for (const entry of [...entries].sort((left, right) => left.name.localeCompare(right.name))) {
     if (await isDirectoryEntry(skillsDir, entry)) folders.push(entry.name);
   }
-  if (folders.length === 0) {
+  const requested = options.only === undefined ? undefined : new Set(options.only);
+  if (requested !== undefined) {
+    const unknown = [...requested].filter((name) => !folders.includes(name));
+    if (unknown.length > 0) {
+      process.stderr.write(`unknown skill folder(s): ${unknown.join(', ')}\n`);
+      return 2;
+    }
+  }
+  const selected = requested === undefined ? folders : folders.filter((name) => requested.has(name));
+  if (selected.length === 0) {
     process.stderr.write(`no skill folders found under ${skillsDir}\n`);
     return 1;
   }
@@ -235,7 +257,7 @@ async function main(): Promise<number> {
   let referencedResolved = 0;
   const skillRecords = new Map();
 
-  for (const folder of folders) {
+  for (const folder of selected) {
     const dir = join(skillsDir, folder);
     const file = join(dir, 'SKILL.md');
     const row: SkillRow = {
@@ -244,7 +266,7 @@ async function main(): Promise<number> {
       description: '',
       descriptionLength: 0,
       extras: [],
-      bodyBytes: 0,
+      bodyChars: 0,
       file,
     };
     rows.push(row);
@@ -276,6 +298,31 @@ async function main(): Promise<number> {
     }
     const { data, body } = parsed;
 
+    // Cross-check the self-contained subset reader against a strict YAML parser:
+    // a document that parses here but not with a real parser would be dropped by
+    // agents even though this validator accepted it.
+    const frontmatterSource = splitFrontmatter(raw);
+    if (frontmatterSource !== undefined) {
+      try {
+        const strict = loadYaml(frontmatterSource.yaml);
+        if (typeof strict !== 'object' || strict === null || Array.isArray(strict)) {
+          fail(file, 'frontmatter', 'a strict YAML parser reads the frontmatter as a non-mapping');
+        } else {
+          const strictMapping = strict as Record<string, unknown>;
+          const strictKeys = Object.keys(strictMapping).sort().join(',');
+          const subsetKeys = Object.keys(data).sort().join(',');
+          if (strictKeys !== subsetKeys) {
+            fail(file, 'frontmatter', `strict YAML keys (${strictKeys}) differ from the subset reader (${subsetKeys})`);
+          }
+          if (strictMapping.name !== data.name || strictMapping.description !== data.description) {
+            fail(file, 'frontmatter', 'strict YAML and the subset reader disagree on name or description');
+          }
+        }
+      } catch (error) {
+        fail(file, 'frontmatter', `a strict YAML parser rejects the frontmatter: ${String(error).split('\n')[0]}`);
+      }
+    }
+
     const name = typeof data.name === 'string' ? data.name.trim() : '';
     row.name = name;
     if (typeof data.name !== 'string') {
@@ -295,6 +342,12 @@ async function main(): Promise<number> {
       fail(file, 'description', 'frontmatter description is empty');
     } else if (description.includes('<') || description.includes('>')) {
       fail(file, 'description', 'frontmatter description contains "<" or ">"');
+    } else if (description.length > DESCRIPTION_WARN_CHARS) {
+      warn(
+        file,
+        'description',
+        `description is ${description.length} characters; dsh-tool-skill caps the catalog at ${DESCRIPTION_WARN_CHARS} by default`,
+      );
     }
 
     if (body.trim() === '') {
@@ -307,12 +360,18 @@ async function main(): Promise<number> {
 
     // Body size matters: a loaded skill body is a tool result, and an oversized one
     // gets trimmed head/tail once a compaction trigger qualifies.
-    row.bodyBytes = Buffer.byteLength(raw, 'utf8');
-    if (row.bodyBytes > BODY_SIZE_WARN_BYTES) {
+    row.bodyChars = [...body].length;
+    if (row.bodyChars > BODY_SIZE_FAIL_CHARS) {
+      fail(
+        file,
+        'size',
+        `SKILL.md body is ${row.bodyChars} characters; the DSH pruner trims results above ${BODY_SIZE_FAIL_CHARS}`,
+      );
+    } else if (row.bodyChars > BODY_SIZE_WARN_CHARS) {
       warn(
         file,
         'size',
-        `SKILL.md is ${row.bodyBytes} bytes; bodies above ${BODY_SIZE_WARN_BYTES} get trimmed once compaction runs`,
+        `SKILL.md body is ${row.bodyChars} characters; keep it under ${BODY_SIZE_WARN_CHARS} so the wrapper still fits`,
       );
     }
 
@@ -413,7 +472,7 @@ async function main(): Promise<number> {
   }
 
   let loaded = 0;
-  for (const folder of folders) {
+  for (const folder of selected) {
     const row = skillRecords.get(folder);
     const candidate = candidateByDir.get(resolve(join(skillsDir, folder)));
     if (candidate === undefined) {
@@ -498,7 +557,7 @@ async function main(): Promise<number> {
       providerList: countFailures('provider.list'),
       providerLoad: countFailures('provider.load'),
     },
-    largestBody: rows.reduce((largest, row) => Math.max(largest, row.bodyBytes ?? 0), 0),
+    largestBody: rows.reduce((largest, row) => Math.max(largest, row.bodyChars ?? 0), 0),
     extrasKeys: [...extras.keys()].sort(),
     extrasSkills: rows.filter((row) => row.extras.length > 0).length,
     failuresList: failures,
@@ -526,9 +585,10 @@ function typeName(value: unknown): string {
 }
 
 /** CLI usage text. */
-const USAGE = `Usage: node scripts/validate-skills.ts [skillsDir] [--report <file>]
+const USAGE = `Usage: node scripts/validate-skills.ts [skillsDir] [--only <names>] [--report <file>]
 
   skillsDir        directory holding skill bundles (default: ./skills)
+  --only <names>   comma-separated skill folder names to check
   --report <file>  also write the Markdown audit report to this path
 
 Exit code 0 when every failure check passes, 1 on failures, 2 on usage errors.`;
@@ -545,6 +605,11 @@ function parseArguments(argv: readonly string[]): CliOptions {
     const argument = argv[index];
     if (argument === '--help' || argument === '-h') {
       options.help = true;
+    } else if (argument === '--only') {
+      const value = argv[index + 1];
+      if (value === undefined || value.startsWith('--')) throw new Error(`${argument} needs a value`);
+      options.only = [...(options.only ?? []), ...value.split(',').filter((name) => name !== '')];
+      index += 1;
     } else if (argument === '--report') {
       const value = argv[index + 1];
       if (value === undefined || value.startsWith('--')) throw new Error(`${argument} needs a value`);
@@ -615,7 +680,7 @@ function renderConsole(summary: Summary): string {
   lines.push(`  skills:              ${summary.passed}/${summary.skills} passed, ${summary.failedSkills} failed`);
   lines.push(`  provider:            ${summary.candidates} candidates listed, ${summary.loaded} loaded`);
   lines.push(`  references:          ${summary.referencesResolved}/${summary.references} resolved`);
-  lines.push(`  largest SKILL.md:    ${summary.largestBody} bytes`);
+  lines.push(`  largest body:        ${summary.largestBody} chars`);
   lines.push(
     `  frontmatter extras:  ${summary.extrasKeys.length} keys across ${summary.extrasSkills} skills (informational)`,
   );
