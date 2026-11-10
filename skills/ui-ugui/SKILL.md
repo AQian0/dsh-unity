@@ -10,26 +10,7 @@ When working with ScrollRect/ScrollView, read the reference file:
 
 ## Scope
 
-Determine what the user is asking for:
-
-| Request Type | Action |
-|--------------|--------|
-| Question about UI | **Understand** — analyze hierarchy, explain structure |
-| Change specific element | **Edit** — targeted modification only |
-| Create new UI | **Generate** — create new hierarchy |
-| Fix/improve existing UI | **Edit** — modify existing, don't rebuild |
-
-**Generate only what is requested:**
-
-| Request | Output |
-|---------|--------|
-| UI layout | Prefab or scene hierarchy only |
-| "with code" / "with logic" / "functional" | Hierarchy + scripts |
-
-**These do NOT imply scripts:**
-- "proper buttons" → well-configured Button components
-- "working UI" → valid hierarchy that renders
-- "menu screen" → visual layout only
+Determine what the user is asking for, and generate only what is requested: [scope-matrix.md](references/scope-matrix.md) maps each request type to its output and lists what does not imply scripts.
 
 ## Critical Rules
 
@@ -95,43 +76,26 @@ Canvas (Screen Space - Overlay or Camera)
 └── [UI Content]
 ```
 
-**CanvasScaler settings:**
-- Default to UI Scale Mode "Scale With Screen Size" unless the project has a specific reason for "Constant Pixel Size" (e.g., pixel-art, fixed-resolution targets)
-- Reference Resolution: Match project standards (e.g., 1920x1080)
-- When creating a Canvas with Screen Space - Camera, **read the camera's reference resolution** first
-- Match Width Or Height: 0.5 (balanced)
-- If an existing Canvas uses "Constant Pixel Size", flag it and ask the user before changing
-- Prefer anchors and Layout Groups over absolute pixel positions for layout
+Prefer anchors and Layout Groups over absolute pixel positions. The CanvasScaler settings, including the Scale With Screen Size default and the reference-resolution rules, are in [canvas-setup.md](references/canvas-setup.md).
 
 ## Layout and anchoring
 
 Layout Groups, Layout Elements, and RectTransform anchoring: [references/layout-and-anchors.md](references/layout-and-anchors.md).
+
 ## Common Components
 
-| Component | Use Case |
-|-----------|----------|
-| `Image` | Backgrounds, icons |
-| `RawImage` | Render textures, videos |
-| `Text (TMP)` | All text (use TextMeshPro) |
-| `Button` | Clickable elements |
-| `Toggle` | Checkboxes, radio buttons |
-| `Slider` | Value ranges |
-| `ScrollRect` | Scrollable content |
-| `InputField (TMP)` | Text input |
+The component-to-use-case table is in [common-components.md](references/common-components.md).
 
 ## Best Practices
 
 - Use TextMeshPro for all text (not legacy Text)
 - WorldSpace UI that have text should also use Text Mesh Pro, be sure to review the project and import the TMP essentials if they are not present in the project
 - If the TextMeshPro Essentials were imported be sure to close the TMP Importer Windows and the Import Unity Package Window once the assets are imported
-- Organize hierarchy logically (Header, Content, Footer)
-- Use Layout Groups instead of manual positioning where possible
-- Set Raycast Target = false on non-interactive images
-- Use sprite atlases for performance
-
 **Never use** `EditorApplication.ExecuteMenuItem("Window/TextMeshPro/Import TMP Essential Resources")`, unless the user asks for an interactive TMP Essentials installation. It opens a modal dialog that blocks whatever invoked it until a human dismisses it.
 
 **Do not use** `AssetDatabase.ImportPackage()` for TMP resources, instead `TMP_PackageResourceImporter.ImportResources()` is the canonical non-interactive API.
+
+Hierarchy organization and performance habits: [best-practices.md](references/best-practices.md).
 
 ## Interaction Readiness
 
@@ -146,72 +110,16 @@ If the first three are missing, interactive elements will exist visually but fai
 
 ## Understanding
 
-When the user asks questions about existing UI:
-
-**Read the hierarchy first.** Don't assume — always inspect the scene or prefab before answering.
-
-**Analyze structure:**
-- Identify the Canvas and its render mode
-- Map the parent-child relationships
-- Identify which Layout Groups control which children
-- Check RectTransform anchor configurations
-
-**Answer questions about:**
-- "What does this button do?" → Explain component, hierarchy position, event wiring
-- "How is this laid out?" → Describe Layout Groups, anchoring, hierarchy
-- "Why is this invisible?" → Check size, anchors, parent bounds, component state
-- "What controls this element's size?" → Trace Layout Group settings or anchors
+Read the hierarchy first, don't assume, and inspect the scene or prefab before answering. The structure checklist and the question-to-answer guide are in [understanding.md](references/understanding.md).
 
 ## Editing
 
-For targeted changes to existing UI:
-
-**Read before editing.** Always inspect the current state first.
-
-**Edit workflow:**
-1. Verify the target object exists
-2. Identify the specific property or component to change
-3. Make the minimal change required
-4. Verify the result before proceeding
-
-**Never destroy to fix:**
-- Destroying objects cascades to null references elsewhere
-- Fix properties in place rather than recreating
-- If an element must be removed, update all references first
+For targeted changes: read before editing, verify the target object exists, identify the specific property or component, make the minimal change, and verify the result. **Never destroy to fix**: destroying objects cascades to null references elsewhere, so fix properties in place, and if an element must be removed, update all references first.
 
 ## C# (Only When Requested)
 
-- Use fully qualified UI types to avoid namespace conflicts
-- Use `[SerializeField]` for inspector references
-- Cache component references in Awake()
-- Use events/delegates for button callbacks
-- Place scripts in same folder as prefabs (follow project patterns)
-
-**Component references:**
-- Verify referenced objects exist before accessing them
-- Handle cases where serialized references may be null
-- When wiring up references, confirm the target component is present
+Use fully qualified UI types, `[SerializeField]` for inspector references, cache components in `Awake()`, and place scripts beside the prefabs. Patterns and the component-reference checks are in [csharp-scripts.md](references/csharp-scripts.md).
 
 ## Error Recovery
 
-When something goes wrong:
-
-**Stop and diagnose:**
-- Identify the exact error or symptom
-- Determine the root cause before attempting fixes
-- Do not make speculative changes
-
-**Fix incrementally:**
-- Address one issue at a time
-- Verify each fix before moving to the next
-- Keep track of what was changed
-
-**Avoid destructive patterns:**
-- "Start fresh" strategies destroy working elements along with broken ones
-- Rebuilding entire hierarchies creates more problems than it solves
-- Prefer surgical fixes to wholesale replacements
-
-**When stuck:**
-- Re-verify the current state of the hierarchy
-- Check if previous changes were actually applied
-- Consider if the approach itself is wrong rather than the implementation
+When something goes wrong, **stop and diagnose**: identify the exact error or symptom and its root cause before attempting fixes, and do not make speculative changes. **Fix incrementally**: one issue at a time, verifying each. **Avoid destructive patterns**: "start fresh" strategies destroy working elements along with broken ones, and rebuilding entire hierarchies creates more problems than it solves, so prefer surgical fixes. When stuck, re-verify the hierarchy, check whether previous changes were actually applied, and consider whether the approach itself is wrong. Full detail: [error-recovery.md](references/error-recovery.md).

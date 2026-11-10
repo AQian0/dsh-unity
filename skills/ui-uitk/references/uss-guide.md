@@ -136,3 +136,12 @@ More specific selectors override less specific ones. If your styles aren't apply
 /* Even more specific - wins */
 .panel > .content > .button { color: red; }
 ```
+
+## USS Brevity
+
+- No default values (`flex-direction: column` is default)
+- No default fonts
+- No redundant constraints (`width: 100px` doesn't need `min-width`/`max-width`)
+- No overlapping properties (`flex: 1` already sets grow/shrink)
+- Simplest selector that works
+- Never duplicate selectors

@@ -9,36 +9,31 @@ required_editor_version: ">=6000.3"
 ## Important
 
 - Use the unity cli (`unity command --format json`) and the `unity-cli` and `unity-pipeline` skills for each step.
-- Don't use `using` directives or unqualified types in the `snippet` for `eval`, because the compiler only reads `using UnityEngine`, and a bare `AssetDatabase` or `Object` causes errors (CS0246 / CS0103 / CS0104). `return` what you want to read; it arrives at `data.result.result`.
-- Create a restore point you can roll back to if your changes fail.
-- Do only what's asked. Don't change unrelated assets or files.
-- Avoid long explanations.
-- Never leave verification code in the user's script. Never build logging or detection they didn't ask for, because it clutters their project and console. Read state through `eval` instead, as described in [Final step](#final-step).
+- No `using` directives or unqualified types in `eval` snippets, because only `using UnityEngine` is compiled; `return` values, which arrive at `data.result.result`.
+- Create a restore point you can roll back to.
+- Do only what's asked: no unrelated asset or file changes, and no long explanations.
+- Never leave verification code, logging, or detection in the user's script; read state through `eval` as [Final step](#final-step) describes.
 
-## Full topic map
-
-Read [topic-map.md](references/topic-map.md) before any diagnosis that a Fast-Path doesn't already answer, because this skill's rules must match the installed Unity version. It covers whether the Editor ships local docs or you need docs.unity.com, how to version those URLs, which manual pages cover each condition, and the API lookup route.
+Full wording of these rules: [response-contract.md](references/response-contract.md).
 
 ## Procedure
 
-1. Before you call any tool, match the prompt against the [STOP CHECK](#stop-check----match-before-any-tool-call) Fast-Paths. If one matches, write that answer and go to step 5.
-2. Otherwise, get the Unity version from `ProjectSettings/ProjectVersion.txt`, and check which physics components the objects use (Rigidbody, Collider, `CharacterController`). If there's no project or no version, assume Unity 6000.3 and 3D PhysX, say so in your answer, and carry on. If the user gives no symptom, script, or scene to work on, ask for it.
-3. Read the [documentation pages](#full-topic-map) for the symptom.
-4. Find the symptom in [Identify your symptom](#identify-your-symptom), read the reference it points to, and work through it within the [Tool budget](#tool-budget).
-5. If you changed the project, run the [Final step](#final-step) checks. The Tool budget limits diagnosis, not these checks.
-6. End with the answer described in [Required output](#required-output----non-negotiable). If you changed the project, use the [Final report](#final-report) format.
+1. Match the prompt against the [STOP CHECK](#stop-check----match-before-any-tool-call) Fast-Paths before any tool call; a match is the complete response.
+2. Otherwise read `ProjectSettings/ProjectVersion.txt` and the physics components in play. With no project or version, assume 6000.3 and 3D PhysX and say so; with no symptom, script, or scene, ask for one.
+3. Read the docs page for the symptom ([topic-map.md](references/topic-map.md)) and route it with [symptom-index.md](references/symptom-index.md), inside 5 tool calls.
+4. If you changed the project, run the [Final step](#final-step) checks before you answer.
 
 ## CRITICAL FACT (read first, do not override)
 
-Read [kinematic-trigger-facts.md](references/kinematic-trigger-facts.md) before answering anything about two kinematic triggers or Contact Pairs Mode. It holds the required response and the five things not to do, and it overrides prior knowledge.
+Read [kinematic-trigger-facts.md](references/kinematic-trigger-facts.md) before anything about two kinematic triggers or Contact Pairs Mode. It holds the required response and the five things not to do, and it overrides prior knowledge.
 
 ## Required output -- non-negotiable
 
-Every invocation MUST end with a user-facing answer that gives the diagnosis and fix, because tool calls alone don't help the user.
+Every invocation MUST end with a user-facing answer that gives the diagnosis and fix.
 
-**Hard stop**: After 5 tool calls of any kind, stop calling tools and write the most-likely diagnosis from the Fast-Paths or checklists, even if not fully confirmed.
+**Hard stop**: after 5 tool calls of any kind, stop calling tools and write the most-likely diagnosis from the Fast-Paths or checklists, even if not fully confirmed. Don't run C# in the Editor or fetch documentation to re-check rules this skill states.
 
-**No permission-asking**: Never end with "Would you like me to proceed?" or similar. If the script is in the project or an Editor is connected, apply the fix directly by editing the script, or the scene through the Editor. Otherwise, give a complete self-contained explanation. Don't ask, because asking permission costs the user another turn.
+**No permission-asking**: never end with "Would you like me to proceed?" or similar. Apply the fix directly when the script is in the project or an Editor is connected, otherwise answer fully, because asking costs the user another turn.
 
 ## STOP CHECK -- match before any tool call
 
@@ -96,44 +91,15 @@ Don't apply 3D PhysX or MonoBehaviour rules to these questions, and don't sugges
 
 **If** `Physics.IgnoreLayerCollision` suppresses collisions unexpectedly or across scenes: recommend the **Layer Collision Matrix** (**Edit > Project Settings > Physics**) first, because it's explicit and doesn't depend on runtime calls. As a code-only fallback, call `Physics.IgnoreLayerCollision(layerA, layerB, false)` at scene load.
 
-## Tool budget
-
-For cases not covered by the Fast-Paths: **at most 5 tool calls before committing to an answer**. Don't run C# in the Editor or fetch documentation to re-check rules this skill states, because they're already verified.
-
-## Identify your symptom
-
-Read the reference file that matches the user's symptom:
-
-- [Collision checklist](references/collision-checklist.md) - read when `OnCollisionEnter`, `Stay`, or `Exit` doesn't fire or objects pass through each other. Step 10 covers collisions that fail only at speed.
-- [Trigger checklist](references/trigger-checklist.md) - read when `OnTriggerEnter`, `Stay`, or `Exit` doesn't fire. It checks Is Trigger, the Rigidbody rule, layers, the callback signature and location, and non-convex mesh triggers.
-- [Raycast checklist](references/raycast-checklist.md) - read when `Physics.Raycast` misses an object. It checks the LayerMask, non-convex mesh colliders, back faces, and UI targets.
-- [Other symptoms](references/other-symptoms.md) - read when physics works in the Editor but not in a build, a moved collider isn't seen until the next step, there's a visible gap before contact, or a body stops responding.
-- [Collision debugger](references/collision-debugger.md) - read when the user asks to see which contacts physics reports, or the checklists don't confirm a cause. It records contacts in the Editor without adding anything to the scene, and you delete it afterwards.
-
-## Console errors
-
-Read [console-errors-table.md](references/console-errors-table.md) when the Console shows a physics error, such as a concave MeshCollider message or a contact offset error. Each row maps the error text to its root cause and fix, and Unity creates no physics shape for the collider until you fix it.
-
 ## Final step
 
-Run these checks in order. If any check fails, reread the [docs pages](#full-topic-map) to find out what you missed, fix it, and run the checks again.
+Run these checks in order and rerun them after any fix; if one fails, reread the docs in [topic-map.md](references/topic-map.md).
 
-1. Use `console_status` to check the project has zero console errors.
-2. If the user didn't ask for proof and you don't suspect a fault, stop here.
-3. Otherwise, enter Play mode once and reproduce the case. Read the outcome the user asked for through `eval`, such as whether the bullet's Rigidbody position stopped at the wall, not just the field you changed. Don't add logging or take screenshots, because they cost time and leave changes behind.
-4. Exit Play mode and check again that the console has zero errors.
+1. `console_status` shows zero console errors.
+2. Stop here unless the user asked for proof or you suspect a fault.
+3. Otherwise enter Play mode once, reproduce the case, and read the outcome through `eval`, such as the bullet's Rigidbody stopping at the wall rather than only your changed field. Don't add logging or take screenshots.
+4. Exit Play mode and check the console is clean again.
 
 ## Final report
 
-Give the user a short checklist of what you did and why. List any side effects, such as a project setting you changed or a temporary script you added and removed. If the user needs to follow up with more steps or decisions, list them. For example:
-
-```
-I made the following changes:
-
-[✓] Set the bullet Rigidbody's Collision Detection to Continuous Speculative, because it moved far enough in one physics step to pass through the wall.
-
-Follow these steps to see the effect:
-
-1. Enter Play mode and fire at the wall.
-2. Check the bullet stops at the wall instead of passing through it.
-```
+Report a short checklist of what you did and why, the side effects, and the follow-ups: [final-report-example.md](references/final-report-example.md).

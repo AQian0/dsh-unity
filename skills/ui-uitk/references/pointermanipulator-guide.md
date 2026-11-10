@@ -92,3 +92,10 @@ When implementing drag-drop for inventory/crafting:
 - Stored item data separately from visual elements (use data binding or C# dictionaries)
 - Validated drop targets before executing drop
 - Added visual feedback: drag shadows, slot highlighting, hover states
+
+## Inventory and crafting systems
+
+- When users request an "inventory system", "equipment system", or "crafting system", ask explicitly: "Should players be able to drag and drop items?"
+- If yes, use the patterns in this guide for inventory/crafting drag and drop.
+- If no or unclear, create static layout only.
+
