@@ -11,7 +11,10 @@
 - **工程门控**：从会话工作目录向上找 `ProjectSettings/ProjectVersion.txt`，据此读 Editor 版本、`Packages/manifest.json` 里的包与渲染管线、Editor 是否打开、`unity` CLI 是否可用。
 - **需求被真正执行**：技能声明的 `required_editor_version` / `required_packages` 不满足时，该技能离开模型的目录，但仍可用 `/技能名` 显式载入；事实未知时不会隐藏任何技能。
 - **运行时上下文**：每个 agent 注入一条 `unity:project` 上下文，说明工程路径、Editor 版本、渲染管线、Editor/CLI 状态，以及本工程里被隐藏的技能与原因。
-- **实时刷新**：`skills/` 被 `fs.watch` 监视；新增、删除或改 `SKILL.md` 会清空解析缓存并让各 agent 的目录缓存失效，不用重启。
+- **实时刷新**：每个 step 前用 `ProjectVersion.txt`、`manifest.json`、`UnityLockfile` 的指纹检查工程事实，变化时重新门控；`skills/` 由 watcher 与 DSH 的 `fs/observed` 共同失效，不用重启。
+- **DSH 原生配置与兼容声明**：导出 schemastery `Config`（Plugins 页可编辑、加载期校验），并在 `package.json` 声明 `engines.dsh` 与 `@deepseek-ai/dsh-skill` / `schemastery` peer，`plugin_manager` 能拒绝不兼容的安装/升级。
+- **`/unity-status`**：面向人的只读命令，输出与目录共用同一套检测/门控，排障不用翻日志。
+- **上游可追踪**：`upstream.lock.json` 记录 Unity 官方插件版本与逐文件 hash；每周 workflow 报告 drift，人工 port，不自动覆盖本地改写。
 - **一行插件、零运行时依赖**：`cordis.patch.yml` 只插入一个 Host 行 `unity-skills`；运行时只用 Node 内置模块，不依赖任何第三方包。仓库里的源码是 TypeScript，`pnpm pack`（`prepack`）时编译成 `lib/` 发布，因此按目录安装前要先构建一次，见[安装](#安装)。
 - **设计说明**：为什么必须按 agent 注册、门控与降级的取舍，见 [docs/design.md](./docs/design.md)。
 
@@ -108,12 +111,13 @@ target: /path/to/dsh-unity
 
 安装会做两件事：在 profile 里加入 `@aqian0/dsh-unity` 这个 bundle，并在组合里插入 `unity-skills` 行（`config: {}`，即用默认配置）。确认方式：插件页出现「Unity 技能」（英文界面为 Unity skills），该 bundle 下能看到 `unity-skills` 行。
 
-### 本地目录安装的行为
+### 安装形态与生效方式
 
-- 安装记录的是这个目录本身（本地目录依赖），不是把技能再复制一份；插件直接读这个 checkout 下的 `skills/`，所以编辑 `skills/` 之后不需要重装。
-- **技能正文的改动下次加载即生效**：每次加载都会重读文件。
-- **新增或删除技能目录、修改 frontmatter**：`skills/` 被监视，变更会清空解析缓存并让目录缓存失效，下一个会话步骤就能看到，不用重启。watcher 起不来时退回到"重启后生效"。
-- **改 `src/` 里的代码**后要重新 `pnpm run build` 再重启 DSH；**替换已安装的包**（升级、换一个 checkout）同理。
+- **registry / 发布版安装**（npm、Desktop 发布版）：profile 里是包的一份**拷贝**。编辑 checkout 的 `skills/` 不会影响已安装副本；升级走 `plugin_manager` 的 `updateBundle`，替换后需要重启 DSH 才会加载新的 `lib/`。本机 profile 当前就是这种形态。
+- **link 安装**（source Web / development Desktop）：profile 直接引用 checkout。编辑 `skills/` 立即生效；改 `src/` 需要 `pnpm run build` 并重启。
+- **技能正文的改动**：每次 `load()` 重读文件，下一次加载即生效。
+- **新增或删除技能目录、修改 frontmatter**：watcher（外部编辑器）与 `fs/observed`（DSH 自己的 write/edit）都会清空解析缓存并让目录缓存失效，下一个会话步骤就能看到；watcher 不可用时退回"重启后生效"。
+- **工程事实变化**（装包、换 Editor 版本、Editor 开/关）：下一个 step 的指纹检查会重新检测并让目录缓存失效。
 - 插件装在 profile 上：安装与启停会把技能提供给该 profile 的**所有会话**（可见范围仍由各自的工程决定）。
 
 ## 使用
@@ -130,22 +134,34 @@ target: /path/to/dsh-unity
 
 也可以直接点名技能，例如"用 `unity-cli` 看看当前 Editor 连的是哪个工程"。被门控隐藏的技能不会出现在模型的目录里，但仍然可以这样按名字加载：不在 Unity 工程里时目录默认只剩 3 个起步技能（`workspaceSkills`），其余技能都只能通过显式点名使用。
 
+想看当前会话检测到的工程与隐藏原因，用 `/unity-status`；它和目录共用同一套检测与门控逻辑，只读、不启动进程。
+
+## 与 DSH 的契约
+
+- **技能字段**：哪些字段被 DSH 消费、哪些由本插件执行、哪些只是信息，见 [docs/frontmatter.md](docs/frontmatter.md)。
+- **版本兼容**：DSH / Node / Unity 的范围与安装形态，见 [docs/compatibility.md](docs/compatibility.md)。
+- **正文预算**：`SKILL.md` 正文低于 8192 字符（目标 7000），细节放 `references/`。
+- **配置与 schema**：导出的 `Config` 是唯一字段来源；`resolveSettings` 只补跨字段语义检查。
+- **目录生命周期**：per-agent provider + `agent/pre-step` 指纹 + `fs/observed`，不依赖 registry 缓存命中时的 `list()`。
+- **上游维护**：`pnpm run upstream:check` / `upstream:fetch` / `upstream:lock`，每周 workflow 开报告 PR。
+
 ## 配置
 
 所有键都可选，写在 profile 的 `cordis.patch.yml` 里覆盖 `unity-skills` 行：
 
-| 键                    | 默认                                                       | 说明                                                                                             |
-| --------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `providerName`        | `unity`                                                    | 注册到 `ctx.skills` 的 provider 名，会标在技能候选上；不能为空，不能用保留名 `runtime`           |
-| `rank`                | `240`                                                      | 同一层内的排序值；层内同名技能由"最近的层胜出"决定，这个值只用来排在同层 runtime 注册（250）之前 |
-| `skillDir`            | 包内 `skills/`                                             | 技能目录；相对路径按进程 cwd 解析                                                                |
-| `exclude`             | `[]`                                                       | 不加载的技能名，按目录名匹配                                                                     |
-| `gateByProject`       | `true`                                                     | 关掉后不再按工程筛选：不在 Unity 工程里也列出全部技能                                            |
-| `workspaceSkills`     | `[new-unity-project, unity-cli, unity-package-management]` | 不在 Unity 工程时仍出现在模型目录里的技能                                                        |
-| `enforceRequirements` | `true`                                                     | 关掉后不再执行 `required_editor_version` / `required_packages`                                   |
-| `injectContext`       | `true`                                                     | 关掉后不再注入 `unity:project` 上下文行                                                          |
-| `watchSkills`         | `true`                                                     | 关掉后不再监视 `skills/`，目录变更需要重启                                                       |
-| `respectProjectRoots` | `true`                                                     | 关掉后不再让工程自己的 `.dsh/skills`、`.agents/skills` 接管同名技能                              |
+| 键                    | 默认                                                       | 说明                                                                                                            |
+| --------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `providerName`        | `unity`                                                    | 注册到 `ctx.skills` 的 provider 名，会标在技能候选上；不能为空，不能用保留名 `runtime`                          |
+| `rank`                | `600`                                                      | 同一层内的排序值；层先于 rank 决定重名，层内 project（100/200）/ custom（300）根优先，runtime 注册（250）也会赢 |
+| `skillDir`            | 包内 `skills/`                                             | 技能目录；相对路径按**包根**解析                                                                                |
+| `exclude`             | `[]`                                                       | 不加载的技能名，按目录名匹配                                                                                    |
+| `gateByProject`       | `true`                                                     | 关掉后不再按工程筛选：不在 Unity 工程里也列出全部技能                                                           |
+| `workspaceSkills`     | `[new-unity-project, unity-cli, unity-package-management]` | 不在 Unity 工程时仍出现在模型目录里的技能                                                                       |
+| `enforceRequirements` | `true`                                                     | 关掉后不再执行 `required_editor_version` / `required_packages`                                                  |
+| `injectContext`       | `true`                                                     | 关掉后不再注入 `unity:project` 上下文行                                                                         |
+| `watchSkills`         | `true`                                                     | 关掉后不再监视 `skills/`，目录变更需要重启                                                                      |
+| `respectProjectRoots` | `true`                                                     | 关掉后不再让工程自己的 `.dsh/skills`、`.agents/skills` 接管同名技能                                             |
+| `statusCommand`       | `true`                                                     | 是否注册 `/unity-status` 命令                                                                                   |
 
 ```yaml
 # profile 的 cordis.patch.yml
@@ -157,7 +173,7 @@ target: /path/to/dsh-unity
     gateByProject: false # 不做工程筛选
 ```
 
-覆盖行用 `id: unity-skills` 定位 bundle 补丁里的那一行。配置是手写校验的：`providerName` 为空或写成 `runtime`、`rank` 不是有限数字、`skillDir` 为空、`exclude`/`workspaceSkills` 不是非空字符串数组、上面任何一个开关不是布尔值，都会让这一行加载失败并报错，不会静默忽略。改完配置后需要重新组成该行：重启 DSH 一定生效，开启 HMR 的 profile 也可能即时重组。
+覆盖行用 `id: unity-skills` 定位 bundle 补丁里的那一行。插件导出 schemastery `Config`：类型与默认值由 DSH 在**加载期**校验，Plugins 页也按同一份 schema 渲染；`resolveSettings` 再补语义检查（`providerName` 非空且不是保留名 `runtime`、`skillDir` 非空、数组元素非空）。改完配置后需要重新组成该行：重启 DSH 一定生效，开启 HMR 的 profile 也可能即时重组。
 
 ## 技能何时出现（项目门控）
 
@@ -169,7 +185,7 @@ target: /path/to/dsh-unity
 | -------------------------------------------------------- | ------------------------------------------------------- |
 | 与工程自己的 `<工程>/.dsh/skills`、`.agents/skills` 同名 | 插件不提供该名字，工程那份生效（`respectProjectRoots`） |
 | 与 `~/.dsh/skills`、`~/.agents/skills` 等外部副本同名    | 插件在 agent 自己的层里，最近层胜出——插件赢             |
-| 与同层 runtime 注册（rank 250）同名                      | 同层内按 rank：本插件 240 排在前面                      |
+| 与同层 runtime 注册（rank 250）同名                      | 同层内按 rank：本插件 600 落后于 runtime 注册           |
 | 组合里根本没有安装插件（或它被禁用）                     | 这些技能不存在                                          |
 
 上表第二行不是特例，而是层规则的直接结果：插件把 provider 注册进 agent 自己的层，比任何全局层或外部根都近，"最近的层胜出"与 `rank` 无关，所以外部目录里的同名副本盖不掉插件的版本。
@@ -183,7 +199,7 @@ target: /path/to/dsh-unity
 - `Temp/UnityLockfile` 是否存在（Editor 是否正开着这个工程）；
 - `unity` 是否在 PATH 上（通过 `ctx.subprocess.resolveExecutable`）。
 
-这些事实按工作目录缓存 2 秒：缓存过期后的下一次查询会重新检测，如果工程事实变了（Editor 版本、包、工程根），就让目录缓存失效并重新门控。
+这些事实按工作目录缓存 2 秒，但 DSH 的目录缓存命中时 `list()` 不会被调用，所以不能只靠 TTL：每个 agent 在 `agent/pre-step` 上比较这三个文件的指纹（mtime/size/存在性），变化时重新检测、重新门控并 `invalidate()`；`unity` 是否在 PATH 上单独缓存 60 秒。工程自有技能名同时按 **DSH 项目根**（最近的 `.git` 祖先）与 Unity 根扫描，monorepo 里两处的 `.dsh/skills` 都生效。
 
 | 会话所在                        | 模型的技能目录                                                                                    |
 | ------------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -220,7 +236,7 @@ Unity project: /path/to/project (Editor 6000.3.14f1, URP, Editor open, unity CLI
 
 ## 开发与验证
 
-开发依赖就是工具链：`typescript`（构建与类型检查）、`@types/node` 与 `vite-plus`（`vp` CLI：Oxfmt 格式化 + Oxlint 规则）。版本由入库的 `pnpm-lock.yaml` 固定，CI 用 `pnpm install --frozen-lockfile`。
+开发依赖就是工具链：`typescript`（构建与类型检查）、`@types/node`、`vite-plus`（`vp` CLI：Oxfmt 格式化 + Oxlint 规则）、`js-yaml`（校验脚本的严格 YAML 对照）与 `@deepseek-ai/schemastery`（`Config` 的类型与构建）。版本由入库的 `pnpm-lock.yaml` 固定，CI 用 `pnpm install --frozen-lockfile`。
 
 ```bash
 pnpm install              # 安装 typescript、@types/node 与 vite-plus
@@ -233,21 +249,34 @@ pnpm run format           # Oxfmt 格式化
 pnpm run format:check     # 只检查格式、不改文件（vp check 里也含这项检查）
 pnpm run lint             # Oxlint 检查
 pnpm run check            # vp check --deny-warnings：格式 + lint，lint 警告也计为失败
-pnpm run validate         # 技能合规性：结构、frontmatter、需求字段、正文体积、资源引用
+pnpm run validate         # 技能合规性：结构、严格 YAML、需求字段、正文预算、资源引用
+pnpm run upstream:check   # 上游 drift（需要网络；drift 退出 1）
+pnpm run upstream:fetch   # 下载变更到 .upstream-preview/ 供人工 port
+pnpm run upstream:lock    # port 完成后更新 upstream.lock.json
 pnpm pack                 # 打 tarball；prepack 会先 pnpm run clean 再 pnpm run build
 ```
 
 `pnpm test` 是提交前只需要记的一条门禁：先 `vp check --deny-warnings` 跑 Oxfmt 格式检查与 Oxlint 规则（lint 警告也算失败），再用 `tsc -p tsconfig.test.json` 做类型检查，最后用 `node --test` 直接跑 `test/**/*.test.ts`。CI 跑的就是这条命令。
 
-格式化与 lint 的规则只在 `vite.config.ts` 里定义一次：Oxfmt 用 120 列、单引号，Oxlint 开 `unicorn`、`typescript`、`oxc`、`import` 插件。`vp` 只读这一份配置，不要在别处加 `.prettierrc`、`.eslintrc` 之类的副本。要自动修复就 `pnpm run check:fix`（格式 + lint）或 `pnpm run lint:fix`（只 lint）。`skills/**` 是 Unity 原样发布的内容，`fmt` 与 `lint` 都把它排除在外，格式化不会改写技能文件。
+格式化与 lint 的规则只在 `vite.config.ts` 里定义一次：Oxfmt 用 120 列、单引号，Oxlint 开 `unicorn`、`typescript`、`oxc`、`import` 插件。`vp` 只读这一份配置，不要在别处加 `.prettierrc`、`.eslintrc` 之类的副本。要自动修复就 `pnpm run check:fix`（格式 + lint）或 `pnpm run lint:fix`（只 lint）。`skills/**` 是 Unity 内容（本地压缩改写后发布），`fmt` 与 `lint` 都把它排除在外，格式化不会改写技能文件。
 
 工具链的 Node 版本分两条线：运行时的 `engines` 是 `>=22.18`，开发用的 `vite-plus` 1.5.0 支持 `^22.18.0 || ^24.11.0 || >=26.0.0`，所以 22.18+ 与 24 LTS 都能跑。测试仍由 Node 的类型剥离直接执行 `.ts`，构建仍只用 `tsc`——Vite+ 在这里只负责格式化与 lint，不接管测试或构建。
 
-`pnpm run validate` 检查的是：技能目录里有 `SKILL.md`、frontmatter 能解析、名称是 kebab-case 且与目录一致、描述非空且不含 `<`/`>`、名称唯一、正文非空、`required_*` 需求字段能解析、`SKILL.md` 不超过 16384 字节（超过即告警，见下节）、provider 能 `list()` 与 `load()` 出全部技能、以及正文里技能相对路径的资源引用在磁盘上存在。失败退出码 1；警告不影响退出码。脚本会打印本次检查的技能数、资源引用数与最大的 `SKILL.md`，这些数字随技能内容变化，以实际输出为准。
+`pnpm run validate` 检查的是：技能目录里有 `SKILL.md`、frontmatter 能被自研子集解析器**和严格 YAML 解析器**同时接受、名称是 kebab-case 且与目录一致、描述非空且不含 `<`/`>`（超过 500 字符告警）、名称唯一、正文非空、`required_*` 需求字段能解析、正文不超过 **8192 字符**（超过失败；超过 7000 告警）、provider 能 `list()` 与 `load()` 出全部技能、以及正文里技能相对路径的资源引用在磁盘上存在。失败退出码 1；警告不影响退出码。脚本会打印本次检查的技能数、资源引用数与最大的正文；`--only a,b` 可只检查指定技能。
 
 ```bash
 node scripts/validate-skills.ts --report /tmp/skill-audit.md   # 另外写一份 Markdown 报告
+node scripts/validate-skills.ts --only unity-cli,ui-uitk       # 只检查指定技能
 ```
+
+### 上游维护
+
+`skills/` 是对 Unity 官方 `unity-agent-plugin` 的压缩改写，`upstream.lock.json`
+记录 pin 的 commit、上游版本（当前 0.1.9-beta）与每个文件的 git blob hash。
+`.github/workflows/upstream.yml` 每周一跑 `--check`，drift 时把变更文件下载为
+artifact、生成 `upstream-report.md` 并开/更新一个 PR；**不会自动覆盖本地技能**。
+维护者按报告人工 port，改完后 `pnpm run upstream:lock` 更新基线。详见
+[docs/compatibility.md](docs/compatibility.md)。
 
 ### CI 与发布
 
@@ -269,7 +298,7 @@ node scripts/validate-skills.ts --report /tmp/skill-audit.md   # 另外写一份
 
 ## 已知限制
 
-- **正文体积有硬约束**：载入的 `SKILL.md` 是工具结果，压缩（compaction）在超过 8192 字符时会裁剪，所以 `SKILL.md` 只做路由——判断、步骤、指向 `references/` 的链接；细节都放在 `references/` 里按需读取。34 个 `SKILL.md` 都按这个结构控制在远小于 16384 字节的规模，校验脚本在超过 16384 字节时告警。新增或改写技能时请沿用这个结构，否则该技能在长会话里会被裁断。
+- **正文体积有硬约束**：载入的 `SKILL.md` 是工具结果，DSH 的 `tool-result-pruner` 在压缩触发后会把超过 **8192 字符**的结果裁成 head + tail，所以 `SKILL.md` 只做路由——判断、关键安全规则、步骤、指向 `references/` 的链接；细节都放在 `references/` 里按需读取。34 个技能的正文都朝 **7000 字符**以内整理，校验脚本在超过 7000 时告警、超过 8192 时失败。新增或改写技能时请沿用这个结构，否则该技能在长会话里会被裁断。
 - **文件监视有边界**：watcher 只关心 `SKILL.md` 的变化（新增、删除、改名、编辑），并按 200ms 防抖合并突发写入；`references/` 等资源文件靠加载时读取，不需要刷新。平台或沙箱不允许监视时，会记录一条警告并退回"重启后生效"。
 - **回退到全局 provider 时会退步**：如果某个 profile 里 `agent.ctx` 够不到 `skills`（或没有 `agents` 服务），插件只注册一份全局 provider，并记录一条警告。这条路径仍按每次查询的 `cwd` 做工程门控，但没有 `unity:project` 上下文，且同名的预设层技能会重新胜出。
 - **非 Unity 会话只提供 3 个技能**：默认 `workspaceSkills` 是 `new-unity-project`、`unity-cli`、`unity-package-management`；需要别的技能就显式点名，或用 `workspaceSkills` 调整。

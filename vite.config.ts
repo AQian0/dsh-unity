@@ -17,14 +17,15 @@ export default defineConfig({
     // semicolons. Oxfmt reads .editorconfig for indentation and line endings.
     printWidth: 120,
     singleQuote: true,
-    // `skills/**` is Unity's content under the Unity Companion License: it is
-    // published verbatim, so the formatter never rewrites it.
+    // `skills/**` is Unity's content under the Unity Companion License: this
+    // repository publishes a condensed adaptation, and the formatter never
+    // rewrites it.
     ignorePatterns: ['skills/**'],
   },
   lint: {
     // Oxlint's native default set (unicorn/oxc/typescript) plus ESM import checks.
     plugins: ['unicorn', 'typescript', 'oxc', 'import'],
-    // Same reason as `fmt.ignorePatterns`: third-party skill content stays as shipped.
+    // Same reason as `fmt.ignorePatterns`: the Unity skill content is not ours to rewrite.
     ignorePatterns: ['skills/**'],
   },
 });

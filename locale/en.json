@@ -1,6 +1,7 @@
 {
   "meta": {
     "title": "Unity skills",
-    "description": "34 Unity game-development skills covering editor tooling, UI, 2D and physics, audio and performance, rendering, multiplayer, monetization, and builds. Each session sees the skills its Unity project supports: three workspace skills outside a project, then editor-version and package requirements applied inside one, with the project facts added to the runtime context."
+    "description": "34 Unity game-development skills covering editor tooling, UI, 2D and physics, audio and performance, rendering, multiplayer, monetization, and builds. Each session sees the skills its Unity project supports: three workspace skills outside a project, then editor-version and package requirements applied inside one, with the project facts added to the runtime context.",
+    "detail": "docs/detail.en.md"
   }
 }

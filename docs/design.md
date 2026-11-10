@@ -16,23 +16,25 @@
 
 ## 2. 组成
 
-| 文件                  | 作用                                                                                                                              |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `src/index.ts`        | 行入口：校验配置、共享解析缓存、创建 agent registry、监听 `agent/created`/`agent/disposed`、启动 watcher、在 fiber 释放时统一注销 |
-| `src/registry.ts`     | 每个 agent 一份注册；事实与项目覆盖的缓存；provider 实现；全局回退 provider                                                       |
-| `src/project.ts`      | 工程检测（向上找 marker、Editor 版本、manifest、Editor 锁、`unity` CLI）、工程自有技能名、`factsKey`                              |
-| `src/gating.ts`       | 可见性决策（工作区技能、需求、项目覆盖）、候选改写、运行时上下文渲染                                                              |
-| `src/requirements.ts` | 版本与包的解析、比较，需求的读取与求值                                                                                            |
-| `src/watch.ts`        | `skills/` 的 `fs.watch`，200ms 防抖，只在 `SKILL.md` 变化时触发                                                                   |
-| `src/skills.ts`       | 技能发现与加载，外加按 (path, mtime, size) 命中的共享解析缓存                                                                     |
-| `src/frontmatter.ts`  | 自包含的 YAML 子集读取器与 invocation 解析                                                                                        |
-| `src/harness.ts`      | 本包用到的 harness 契约的结构化声明（provider、prompt context、agent scope、可选服务），使构建不需要依赖 `@deepseek-ai/*`         |
-| `cordis.patch.yml`    | 只插入一个 Host 行 `unity-skills`（`config: {}`）                                                                                 |
-| `skills/`             | 34 个技能目录，每个是 `<name>/SKILL.md` + 可选的 `references/`、`scripts/`、`resources/`                                          |
+| 文件                  | 作用                                                                                                                                                                  |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/index.ts`        | 行入口：校验配置、共享解析缓存、创建 agent registry、监听 `agent/created`/`agent/disposed`/`fs/observed`、注册 `/unity-status`、启动 watcher、在 fiber 释放时统一注销 |
+| `src/config.ts`       | schemastery `Config`：字段、默认值与 UI 说明；DSH 在加载期校验                                                                                                        |
+| `src/status.ts`       | `/unity-status` 的纯渲染：工程事实、可见/隐藏计数与原因                                                                                                               |
+| `src/registry.ts`     | 每个 agent 一份注册；事实与项目覆盖的缓存；provider 实现；全局回退 provider                                                                                           |
+| `src/project.ts`      | 工程检测（向上找 marker、Editor 版本、manifest、Editor 锁、`unity` CLI）、工程自有技能名、`factsKey`                                                                  |
+| `src/gating.ts`       | 可见性决策（工作区技能、需求、项目覆盖）、候选改写、运行时上下文渲染                                                                                                  |
+| `src/requirements.ts` | 版本与包的解析、比较，需求的读取与求值                                                                                                                                |
+| `src/watch.ts`        | `skills/` 的 `fs.watch`，200ms 防抖，只在 `SKILL.md` 变化时触发；与 `fs/observed` 共用 coalesce                                                                       |
+| `src/skills.ts`       | 技能发现与加载，外加按 (path, mtime, size) 命中的共享解析缓存                                                                                                         |
+| `src/frontmatter.ts`  | 自包含的 YAML 子集读取器与 invocation 解析                                                                                                                            |
+| `src/harness.ts`      | 本包用到的 harness 契约的结构化声明（provider、prompt context、agent scope、可选服务），使构建不需要依赖 `@deepseek-ai/*`                                             |
+| `cordis.patch.yml`    | 只插入一个 Host 行 `unity-skills`（`config: {}`）                                                                                                                     |
+| `skills/`             | 34 个技能目录，每个是 `<name>/SKILL.md` + 可选的 `references/`、`scripts/`、`resources/`                                                                              |
 
-**构建形态**与官方插件包一致：仓库里是 `src/` 下的 TypeScript，`pnpm run build`（`tsc -p tsconfig.json`）产出 `lib/*.js` 与 `lib/types/*.d.ts`，`prepack` 会再跑一次构建，因此 `pnpm pack` 出来的 tarball 只有编译产物、`cordis.patch.yml`、`locale/`、`skills/`、图标，以及 `README.md`、`docs/`、`CHANGELOG.md` 与 `LICENSE.md`、`LICENSE-UNITY-COMPANION.md`、`NOTICE.md`。`lib/` 被 `.gitignore` 忽略，不随仓库提交；按目录安装前需要先构建。`tsconfig.test.json` 只做类型检查（`src/`、`test/`、`scripts/`），测试与脚本由 Node 内置的类型剥离直接运行 `.ts`（`engines` 要求 Node.js >=22.18）。
+**构建形态**与官方插件包一致：仓库里是 `src/` 下的 TypeScript，`pnpm run build`（`tsc -p tsconfig.json`）产出 `lib/*.js` 与 `lib/types/*.d.ts`，`prepack` 会再跑一次构建，因此 `pnpm pack` 出来的 tarball 只有编译产物、`cordis.patch.yml`、`locale/`、`skills/`、图标、`upstream.lock.json`，以及 `README.md`、`README.en.md`、`docs/`、`CHANGELOG.md` 与 `LICENSE.md`、`LICENSE-UNITY-COMPANION.md`、`NOTICE.md`。`lib/` 被 `.gitignore` 忽略，不随仓库提交；按目录安装前需要先构建。`tsconfig.test.json` 只做类型检查（`src/`、`test/`、`scripts/`），测试与脚本由 Node 内置的类型剥离直接运行 `.ts`（`engines` 要求 Node.js >=22.18）。
 
-**开发工作流是 pnpm + Vite+**：`packageManager` 固定 `pnpm@12.16.1`，`pnpm-lock.yaml` 入库（`package-lock.json` 已移除并被 `.gitignore` 忽略），CI 用 `pnpm install --frozen-lockfile` 做可复现安装。`vite-plus` 1.5.0 只提供 `vp` CLI——Oxfmt 格式化与 Oxlint 规则，规则只在 `vite.config.ts` 一处定义（120 列、单引号；`unicorn`、`typescript`、`oxc`、`import` 插件），对应 `format`、`format:check`、`lint`、`lint:fix`、`check`、`check:fix` 脚本；`skills/**` 是 Unity 原样发布的内容，`fmt` 与 `lint` 都用 `ignorePatterns` 将它排除在外，格式化不会改写技能文件。`pnpm test` 是统一门禁：`vp check --deny-warnings` → `tsc -p tsconfig.test.json` → `node --test`。Vite+ 不接管测试或构建：测试仍由 Node 的类型剥离直接跑 `.ts`，构建仍只用 `tsc`。`vite-plus` 1.5.0 支持 `^22.18.0 || ^24.11.0 || >=26.0.0`，与 `engines` 的 `>=22.18` 在 22.18+ 与 24 LTS 两条线上重合。
+**开发工作流是 pnpm + Vite+**：`packageManager` 固定 `pnpm@12.16.1`，`pnpm-lock.yaml` 入库（`package-lock.json` 已移除并被 `.gitignore` 忽略），CI 用 `pnpm install --frozen-lockfile` 做可复现安装。`vite-plus` 1.5.0 只提供 `vp` CLI——Oxfmt 格式化与 Oxlint 规则，规则只在 `vite.config.ts` 一处定义（120 列、单引号；`unicorn`、`typescript`、`oxc`、`import` 插件），对应 `format`、`format:check`、`lint`、`lint:fix`、`check`、`check:fix` 脚本；`skills/**` 是 Unity 内容（本地压缩改写后发布），`fmt` 与 `lint` 都用 `ignorePatterns` 将它排除在外，格式化不会改写技能文件。`pnpm test` 是统一门禁：`vp check --deny-warnings` → `tsc -p tsconfig.test.json` → `node --test`。Vite+ 不接管测试或构建：测试仍由 Node 的类型剥离直接跑 `.ts`，构建仍只用 `tsc`。`vite-plus` 1.5.0 支持 `^22.18.0 || ^24.11.0 || >=26.0.0`，与 `engines` 的 `>=22.18` 在 22.18+ 与 24 LTS 两条线上重合。
 
 此外，`locale/en.json` / `locale/zh.json` 与 `icon.svg` 提供插件页的标题、描述与图标（图标使用 Lucide 的 `gamepad-2` 图形，按 ISC 许可，见 `NOTICE.md`）。许可证按路径划分：整合代码（`src/`、`test/`、`scripts/`、配置与文档）是 MIT，全文见 `LICENSE.md`；`skills/` 下的技能内容版权属于 Unity Technologies，按 Unity Companion License 使用，全文见 `LICENSE-UNITY-COMPANION.md`；各覆盖哪些路径由 `NOTICE.md` 记录。这些文件与 `CHANGELOG.md` 一起随包发布。`scripts/validate-skills.ts` 与 `test/*.test.ts` 是开发期工具（见 7.3 与第 9 节）。
 
@@ -90,8 +92,10 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 - **解析工作目录**：优先 `ctx.workingDirectory.get(session)`，退回 `session.header.cwd`；每次 `list()` 都重新解析，所以会话切换工作目录会立即重新门控。
 - **注册**：`agent.ctx.skills.registerProvider(...)`。拿不到 `skills` 时 `add()` 返回 `unavailable`，由 `src/index.ts` 触发一次全局回退。
-- **上下文**：若 `injectContext` 且 `agent.ctx.systemPrompt` 可用，注册 `{ name: 'unity:project', order: 180, text: () => renderContext(...) ?? '' }`，每次组装提示词时重算。
-- **预热**：注册完成后立刻读一次工程事实，让第一次提示词组装就带上上下文。
+- **上下文**：若 `injectContext` 且 `agent.ctx.systemPrompt` 可用，注册 `{ name: 'unity:project', order: 180, text: () => renderContext(state.facts, state.hidden) ?? '' }`，每次组装提示词时重算。
+- **step 边界刷新**：在 `agent.ctx` 上注册 `agent/pre-step`，用 `projectFingerprint`（`ProjectVersion.txt`、`manifest.json`、`UnityLockfile` 的 mtime/size/存在性）判断事实是否移动；变化时才重新检测、重新 gate 并 `control.invalidate()`，未变化时不追加目录替换消息。这是必要的：DSH 的注册表按 `cwd + scope + revision` 缓存目录，缓存命中时 `list()` 不会被调用。
+- **预热**：注册完成后执行一次完整 `view()`，把 `facts`/`hidden` 写进状态，让第一次提示词组装就带上上下文，而不是等第一次目录读取。
+- **作用域生命周期**：provider、systemPrompt context、pre-step 监听收进一个 `agent.ctx.effect()`，同时保留按 agent 的 disposer 供插件卸载清理。
 - **注销**：`agent/disposed` 时释放该 agent 的 provider 注册与上下文条目；fiber 释放时释放全部监听、watcher 与注册。
 - **启动时已存在的 agent**：用 `ctx.agents.list()` 逐个 bootstrap，不需要等新会话。
 
@@ -106,11 +110,25 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 | `requirements` | 从 `required_editor_version` / `required_packages` 读出的需求声明，供门控使用        |
 | `provider`     | `providerName`，默认 `unity`                                                         |
 | `source`       | 固定 `unity`（自定义标签，不参与优先级）                                             |
-| `rank`         | `rank` 配置，默认 240                                                                |
+| `rank`         | `rank` 配置，默认 600                                                                |
 | `locator`      | `{ dir, file }`，加载时传回 provider                                                 |
 | `resourceBase` | `{ kind: 'directory', path: <技能目录> }`                                            |
 | `path`         | `SKILL.md` 路径（加载时换成 `realpath`，便于预览）                                   |
 | `metadata`     | frontmatter `metadata`（纯映射时透传）                                               |
+
+### 4.4 Config、兼容声明与状态命令
+
+- `src/config.ts` 导出 schemastery `Config`；DSH 在挂载前按它校验 row config，
+  Plugins 页也按同一份 schema 渲染。`resolveSettings` 仍负责 schema 表达不了的
+  语义：非空 provider 名、保留名 `runtime`、包根相对路径、Set 归一化。
+- `package.json` 的 `engines.dsh` 与 `@deepseek-ai/dsh-skill` /
+  `@deepseek-ai/schemastery` peer 是兼容性契约；`test/contract.test.ts` 把本地
+  结构类型与官方导出类型做编译期对照。
+- `/unity-status` 复用 `AgentRegistry.status()`：同一套 view/gate 逻辑，输出
+  工程根、Editor/CLI 状态、可见/隐藏计数与原因。`statusCommand: false` 关闭。
+- 正文预算：`SKILL.md` 正文 >8192 字符会被 DSH 的 `tool-result-pruner` 裁剪，
+  所以硬门禁 8192、目标 7000；`test/content-budget.test.ts` 在 `pnpm test` 里
+  直接守住，`scripts/validate-skills.ts` 再用严格 YAML 解析对照。
 
 ## 5. 技能 frontmatter 的处理
 
@@ -193,12 +211,12 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 | -------------------------------------------------------- | ------------------------------------------------------- |
 | 与工程自己的 `<工程>/.dsh/skills`、`.agents/skills` 同名 | 插件不提供该名字（`respectProjectRoots`），工程那份生效 |
 | 与 `~/.dsh/skills`、`~/.agents/skills` 等外部副本同名    | 插件在 agent 自己的层里，最近层胜出 → 插件赢            |
-| 与同层 runtime 注册（rank 250）同名                      | 同层内按 rank：本包 240 排在前                          |
+| 与同层 runtime 注册（rank 250）同名                      | 同层内按 rank：本包 600 落后于 runtime 注册             |
 | 回退到全局 provider 时                                   | 预设层的同名技能重新胜出                                |
 
-默认 `rank: 240` 就是按上表选的：正常路径下重名由层解决，这个值只需排在 runtime 注册（250）之前；它不承担"跨层竞争"的职责，也没有那个能力。
+默认 `rank: 600` 与 DSH bundled skill root 一致：正常路径下重名由层解决；若本 provider 与 `skill-filesystem` 落在同一层，project（100/200）与 custom（300）根会赢，这是期望行为。它不承担"跨层竞争"的职责。
 
-工程自有技能名来自 `<工程>/.dsh/skills` 与 `.agents/skills` 下带 `SKILL.md` 的目录（`readProjectSkillNames`），按工程根缓存 2 秒。命中的名字**整个不提供**，而不是降级为隐藏——这样工程的定制不会被本包遮住。
+工程自有技能名来自 **DSH 项目根**（最近的 `.git` 祖先）与 Unity 根下的 `.dsh/skills`、`.agents/skills`（`readProjectSkillNames` 接受多个根），按两个根缓存 2 秒。命中的名字**整个不提供**，而不是降级为隐藏——这样工程的定制不会被本包遮住。
 
 ## 7. 错误与降级
 
@@ -239,28 +257,29 @@ DSH 把技能注册按**层**组织：一次注册落在调用上下文所在的
 
 `scripts/validate-skills.ts` 走插件的真实代码路径（`src/skills.ts` 里 `createUnitySkillReader` 的 `list()`/`load()`、`src/frontmatter.ts` 的 `parseSkillMarkdown`）。
 
-| 场景                                                                                                                                                     | 行为                         |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| 缺 `SKILL.md`、frontmatter 不可解析、`name` 不是 kebab-case 或与目录不符、`description` 为空或含 `<`/`>`、重名、正文为空、provider 列不出/载不出某个技能 | failure，退出码 1            |
-| 技能内相对资源引用缺失                                                                                                                                   | warning                      |
-| `SKILL.md` 超过 16384 字节                                                                                                                               | `size` warning（见第 10 节） |
-| 出现 DSH 不执行的 frontmatter 字段                                                                                                                       | 单独作为"信息项"汇总         |
+| 场景                                                                                                                                                     | 行为                                   |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| 缺 `SKILL.md`、frontmatter 不可解析、`name` 不是 kebab-case 或与目录不符、`description` 为空或含 `<`/`>`、重名、正文为空、provider 列不出/载不出某个技能 | failure，退出码 1                      |
+| 技能内相对资源引用缺失                                                                                                                                   | warning                                |
+| 正文超过 8192 字符 / 超过 7000 字符                                                                                                                      | `size` failure / warning（见第 10 节） |
+| 出现 DSH 不执行的 frontmatter 字段                                                                                                                       | 单独作为"信息项"汇总                   |
 
 ## 8. 刷新、缓存与重启
 
 缓存与失效方式：正文不缓存，其余四层各有各的失效条件。
 
-| 缓存           | 键                            | 失效方式                                                         |
-| -------------- | ----------------------------- | ---------------------------------------------------------------- |
-| 正文           | 无缓存                        | 每次 `load()` 重读文件                                           |
-| 解析结果       | 文件路径 + `mtimeMs` + `size` | 文件变化或 watcher 清空                                          |
-| 目录（注册表） | `cwd` + scope 链 + revision   | provider 的 `control.invalidate()`、注册变化、provider 注销      |
-| 工程事实       | 工作目录                      | 2 秒 TTL（`FACTS_TTL_MS`）；`factsKey` 变化时主动 `invalidate()` |
-| 工程自有技能名 | 工程根                        | 2 秒 TTL                                                         |
+| 缓存           | 键                            | 失效方式                                                    |
+| -------------- | ----------------------------- | ----------------------------------------------------------- |
+| 正文           | 无缓存                        | 每次 `load()` 重读文件                                      |
+| 解析结果       | 文件路径 + `mtimeMs` + `size` | 文件变化或 watcher 清空                                     |
+| 目录（注册表） | `cwd` + scope 链 + revision   | provider 的 `control.invalidate()`、注册变化、provider 注销 |
+| 工程事实       | 工作目录                      | 2 秒 TTL；pre-step 指纹变化时强制重算并 `invalidate()`      |
+| 工程自有技能名 | DSH 项目根 + Unity 根         | 2 秒 TTL                                                    |
+| `unity` CLI    | 进程                          | 60 秒 TTL，避免每步探测 PATH                                |
 
 `factsKey` 由工程根、Editor 版本、渲染管线、Editor 开关状态和包列表拼成。`list()` 每次都重新取事实；键变了就排一个 `queueMicrotask` 调 `control.invalidate()`，让下一次快照按新事实重新门控，而不是等重启。
 
-`src/watch.ts` 用 `fs.watch(dir, { recursive: true, persistent: false })` 监视 `skills/`，只对路径以 `SKILL.md` 结尾的事件（或拿不到文件名的整目录事件）反应，按 200ms 防抖合并，随后 `parseCache.clear()` 并让每个 agent 的 `control.invalidate()`。资源文件（`references/` 等）不参与发现，靠加载时读取，不需要刷新。
+`src/watch.ts` 用 `fs.watch(dir, { recursive: true, persistent: false })` 监视 `skills/`，只对路径以 `SKILL.md` 结尾的事件（或拿不到文件名的整目录事件）反应，按 200ms 防抖合并；`apply()` 同时监听 DSH 的 `fs/observed`，让 write/edit 产生的 `SKILL.md` 修改立即失效。两条路径共用一个 microtask coalesce：`parseCache.clear()` + 每个 agent 的 `control.invalidate()`。资源文件（`references/` 等）不参与发现，靠加载时读取，不需要刷新。
 
 仍需重启的情况：
 
@@ -277,25 +296,31 @@ pnpm run check       # vp check --deny-warnings：Oxfmt 格式 + Oxlint 规则�
 pnpm run build       # src/ → lib/*.js + lib/types/*.d.ts（发布产物）
 pnpm run typecheck   # tsc -p tsconfig.test.json 检查 src/、test/、scripts/
 pnpm test            # 完整门禁：vp check → typecheck → test:unit（node --test）
-pnpm run validate    # 技能合规性：结构、frontmatter、需求字段、正文体积、资源引用
+pnpm run validate    # 技能合规性：结构、严格 YAML、需求字段、正文预算、资源引用
+pnpm run upstream:check  # 上游 drift（需要网络；drift 退出 1）
 pnpm pack --dry-run  # 打包清单：确认 lib/、skills/、文档与许可证文件都在包里
 ```
 
 - **`pnpm run check`**（也是 `pnpm test` 的第一步）：`vite.config.ts` 里的 Oxfmt 与 Oxlint 规则无违例；`skills/**` 不在检查范围内。
 - **`pnpm run build` / `pnpm run typecheck`**：TypeScript 无错误；构建产物加载后 provider 能 `list()` 出全部技能。
-- **`pnpm test`**：先格式与 lint、再类型检查、最后单元测试；测试覆盖 frontmatter 解析、需求解析与求值、工程检测、门控、per-agent 注册与生命周期、watcher 注销与 catalog 装配。
-- **`pnpm run validate`**：技能结构与 frontmatter 合规、`required_*` 可解析、正文体积在阈值内、技能内资源引用都能在磁盘上解析；失败退出码 1，警告不影响退出码。
+- **`pnpm test`**：先格式与 lint、再类型检查、最后单元测试；测试覆盖 frontmatter 解析、需求解析与求值、工程检测（含 monorepo 双根）、门控、per-agent 注册与生命周期、pre-step 失效、`fs/observed`、`/unity-status`、Config schema、DSH 契约对照、正文预算与上游锁。
+- **`pnpm run validate`**：技能结构与 frontmatter 合规（自研子集解析器 + 严格 YAML 双解析）、`required_*` 可解析、正文 ≤8192（>7000 告警）、技能内资源引用都能在磁盘上解析；`--only a,b` 可只查指定技能。失败退出码 1。
+- **`pnpm run upstream:check`**：`upstream.lock.json` 与上游最新树对比；drift 退出 1 并列变更文件，网络失败退出 2。
 - **`pnpm pack --dry-run`**：发布前核对 tarball 内容与 `files` 字段一致。
 
 技能在真实会话里的表现（非 Unity 目录下可见几条、进入工程后隐藏哪些、`skills/` 变更是否即时生效）按第 5、7、8 节的规则观察，本文不记录某台机器上的运行结果。
 
 ## 10. 已知缺口
 
-- **正文体积靠约定与告警维持**：载入的 `SKILL.md` 是工具结果，压缩在超过 8192 字符时会裁剪，所以技能采用“`SKILL.md` 只做路由 + 细节放 `references/`”的结构。34 个 `SKILL.md` 都按这个结构保持在远小于 16384 字节的规模，校验脚本在超过 16384 字节时告警；新增技能若把细节写回 `SKILL.md`，长会话里会被裁断。
-- **watcher 的边界**：只关心 `SKILL.md` 的增删改；`fs.watch` 在部分平台/沙箱不可用或会停止，此时只能退回重启时发现（各记录一条警告）。防抖窗口 200ms，突发写入会被合并。
+- **正文体积是硬约束**：载入的 `SKILL.md` 是工具结果，DSH 的 `tool-result-pruner` 在压缩触发后裁剪 >8192 字符的结果，所以技能采用“`SKILL.md` 只做路由 + 细节放 `references/`”的结构。34 个技能都朝 7000 字符以内整理；校验脚本 >7000 告警、>8192 失败。
+- **watcher 的边界**：只关心 `SKILL.md` 的增删改；`fs.watch` 在部分平台/沙箱不可用或会停止，此时退回重启时发现（记录一条警告），DSH 自身的 write/edit 仍会经 `fs/observed` 立即失效。防抖窗口 200ms，突发写入会被合并。
 - **回退路径更弱**：`agent.ctx` 够不到 `skills` 时只有一份全局 provider：没有 `unity:project` 上下文，同名的预设层技能重新胜出。
 - **非 Unity 会话只有 3 个技能**：这是默认的 `workspaceSkills`；需要更多就显式点名或用配置调整。
 - **隐藏不等于不可用**：`/技能名` 仍可载入被隐藏的技能；如果它确实不适用于当前工程，责任在使用者。
+- **`allowed-tools` 不执行**：DSH 没有 skill-scoped 工具白名单，字段已映射为 DSH 工具名仅供阅读；`modes`/`enabled` 同理。
 - **未知即放行**：需求无法检查时选择不隐藏，而且不产出任何提示——写错的范围不会让技能消失，但也不会有人告诉你这项检查没有做成。
-- **事实有 2 秒陈旧窗口**：刚切换工程或装完包的两秒内，目录可能仍按旧事实门控。
+- **非工程会话的重检窗口**：没有工程时每 10 秒才重新检查工程是否出现；工程内由 pre-step 指纹即时发现变化。
 - **profile 级影响**：安装、启停影响该 profile 的所有会话；替换已安装的包需要重启。
+- **上游 drift 只报告不合并**：`skills/` 是压缩改写版，`scripts/upstream.ts --check` 与每周 workflow 报告变更，由人决定如何 port。
+- **fix-3d-physics-collisions 的例外**：STOP CHECK 逐字保留 4833 字符，正文 7.78k，仍低于 8192 硬限，但有 1 条 7000 告警；这是安全文案优先于告警线的有意取舍。
+- **安装形态差异**：registry/发布版是拷贝，`link:` 才直接引用 checkout；编辑 checkout 不一定影响已安装副本。
