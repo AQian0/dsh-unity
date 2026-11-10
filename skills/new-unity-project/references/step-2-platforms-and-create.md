@@ -9,6 +9,21 @@ Two decisions (paved: filled from the Defaults table, then **print the manifest*
 Default to an explicit `--editor-version latest` unless the user names a version — without the
 flag, create prefers a stored default or an older installed Editor.
 
+## The assumptions manifest
+
+Print exactly one block here, before the create launches. It **predicts** what create will do (the
+URP template per `--template 3d|2d`, never a guessed id):
+
+> **Paved assumptions:** Unity <editor> · <URP template, 2D/3D> · <platforms> · <monetization> ·
+> anonymous player accounts (create's, else one bootstrap script) · <version control> ·
+> cloud-linked with diagnostics (create's defaults, narrated from the result) · floor packages
+> (Cinemachine; identity + live services when cloud-linked) · craft floors on via `craft-game-floors` ·
+> a one-line handoff note for the project's AGENTS.md, written only on your yes.
+> Say the word to change any of these; otherwise I'm proceeding.
+
+One block, every assumption present, each reversible, nothing implied; Step 3 reconciles the
+result against it.
+
 Confirm prerequisites, then **start the create as a background task** (`unity-cli` has module
 names and auth / license setup):
 

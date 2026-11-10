@@ -1,7 +1,7 @@
 # Checklist
 
-- [ ] Delegated skills checked before Step 1 (incl. `craft-game-floors`): a missing one offered, or named
-      in the report
+- [ ] Delegated skills checked before Step 1 (incl. `craft-game-floors`): a missing one named in the
+      report
 - [ ] Mode decided once; in paved, the manifest printed before the create launches
 - [ ] Brief captured; platforms + monetization recorded
 - [ ] Background create with `--install-editor` + modules, URP template (`--template 3d`/`2d`)

@@ -15,7 +15,7 @@ only if not — headless/CI uses the "Import & save headlessly" method in
 - **Unity Version Control (UVCS):** check in through the workspace from Step 4 — no `git` step;
   generated folders stay excluded by the ignore rules.
 
-If Step 7 mirrored skills into the project, ask whether to include them. If Step 4 linked
-**without** `--no-initial-commit`, the CLI already committed the bare project — add a follow-up
-commit rather than double-committing.
+The bundle's skills are never copied into the project, so nothing extra is staged for them. If
+Step 4 linked **without** `--no-initial-commit`, the CLI already committed the bare project — add a
+follow-up commit rather than double-committing.
 

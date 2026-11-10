@@ -28,8 +28,9 @@ recovery are tabled in [references/skill-setup.md](../references/skill-setup.md)
 apply each item below by running C# in it — **`unity-cli` owns those commands**; don't re-derive
 them here.
 
-Once the Editor is ready, read the `unity-pipeline` guide if your skills don't list it —
-locations and mirroring routes: [references/skill-setup.md](../references/skill-setup.md).
+Once the Editor is ready, read the `unity-pipeline` skill from the catalog; where the package's own
+copy of the guide lives when the catalog doesn't list it:
+[references/skill-setup.md](../references/skill-setup.md).
 
 **Items 1, 2, 5 and 6 assume a URP template**, the Step 2 default. If the user explicitly chose
 Built-in, don't run them as written — `UniversalAdditionalCameraData`, `Light2D`, the
@@ -61,7 +62,7 @@ asked for Built-in.
    `currentRenderPipeline`, not `defaultRenderPipeline`: a quality tier can carry its own pipeline
    asset, and item 3 above just set the tier.
 6. **Pixel art only.** Point filter mode on sprites and a Pixel Perfect Camera — see
-   `2d-pixel-perfect`. If missing, do both yourself and note the skill-setup install route in the
+   `2d-pixel-perfect`. If the catalog doesn't list it, do both yourself and name the gap in the
    report.
 
 Save the scene, then confirm both of these — **not with `unity logs`**, which reads the CLI's own
