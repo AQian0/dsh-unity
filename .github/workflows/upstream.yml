@@ -1,0 +1,79 @@
+name: upstream
+
+# Weekly drift report for the vendored Unity skills.
+#
+# `skills/` is a condensed adaptation of Unity-Technologies/unity-agent-plugin,
+# so upstream changes cannot be merged automatically. The job records what moved
+# since `upstream.lock.json`, opens (or updates) one pull request with the report,
+# and leaves the port to a maintainer. After porting, run
+# `pnpm run upstream:lock` and include the updated lock in the same PR.
+
+on:
+  schedule:
+    # Mondays 03:17 UTC; a fixed minute avoids the top-of-hour rush.
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6 (v6.1.0)
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6 (v6.5.0)
+        with:
+          node-version: '24'
+
+      - name: Check upstream drift
+        id: drift
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/upstream.ts --check --report upstream-report.md
+
+      - name: Fetch upstream previews
+        if: steps.drift.outcome == 'failure'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/upstream.ts --fetch --report upstream-report.md
+
+      - name: Upload the preview files
+        if: steps.drift.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: upstream-preview
+          path: .upstream-preview
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Open or update the port pull request
+        if: steps.drift.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch="upstream/sync-$(date -u +%Y%m%d)"
+          lock_ref="$(node -p "require('./upstream.lock.json').ref.slice(0, 12)")"
+          title="chore(upstream): report drift since ${lock_ref}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B "${branch}"
+          git add upstream-report.md
+          git commit -m "${title}"
+          git push --force origin "${branch}"
+          number="$(gh pr list --head "${branch}" --state open --json number --jq '.[0].number')"
+          if [ -n "${number}" ]; then
+            gh pr edit "${number}" --title "${title}" --body-file upstream-report.md
+          else
+            gh pr create --title "${title}" --body-file upstream-report.md --head "${branch}" --base main
+          fi

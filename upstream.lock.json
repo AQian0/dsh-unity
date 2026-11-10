@@ -1,0 +1,394 @@
+{
+  "repository": "Unity-Technologies/unity-agent-plugin",
+  "ref": "fb5e63e2f37ae4c9dbb2b6ba7de5e83d24bdf498",
+  "version": "0.1.9-beta",
+  "fetchedAt": "2026-11-10T08:35:54.096Z",
+  "skills": {
+    "2d-pixel-perfect": {
+      "files": {
+        "SKILL.md": "47fcafab1ee5df5a7d766b29e47559da13b5658d",
+        "references/api-reference.md": "d547ab3bd6524f77efcf2ab33410515346845c66",
+        "references/camera-setup-builtin.cs": "613a37c972760e164e7e7a2d72ff47085347ae7a",
+        "references/camera-setup-urp.cs": "87f99bf4f1da564d10b6fa927e5746f73d406f27",
+        "references/pipeline-detection.cs": "56a80758295f66bad7acd60e38b8bb86bc9a064c",
+        "references/sprite-settings.cs": "0107bbbda8198cae88aa10f44c7140cd89d25e19"
+      }
+    },
+    "asset-transformer-toolkit": {
+      "files": {
+        "SECURITY.md": "ef045647d0d96314e99750ddfcc0ea9c30f600b4",
+        "SKILL.md": "c033492b86faf9e95f83b94120f80a11c32dc431",
+        "references/create-importer.md": "f0342d73db38abdd36a2972255042b55cfc13761",
+        "references/lods.md": "9e4a768320c5dc2ed6273f13e88e725bbc1be87d",
+        "references/rule-api.md": "8c0fa7d999daf138f8c4a1300c75f24e5b10a762",
+        "references/ruleblock-api.md": "97cf80a759c4407e069298477cdfc525e2887b87",
+        "references/ruleset-api.md": "fbc40ee4753be13dd4f7235f31a86114361f1f0b",
+        "references/rulesets-and-actions.md": "834f21aecc86b7a9813e00dc7b97555e5fedc02f"
+      }
+    },
+    "audio-setup-mixers": {
+      "files": {
+        "SECURITY.md": "7ca3820f2646e578db4af4624f82fff4fd09b729",
+        "SKILL.md": "23f2af08b42a54ac25ebec3f71a4d1f1cccac912",
+        "references/api.md": "c2cb0943201cf74fca04f0e605acd0076252f0a0"
+      }
+    },
+    "build-gtk": {
+      "files": {
+        "SECURITY.md": "6f594dd65196c34dfa52bc912cd20034b147bb98",
+        "SKILL.md": "638762868460e526b9df0accc6e4be489b728699",
+        "references/graph-api-gaps.md": "1e78a8a13665634f3731245e81c183addf2fca77",
+        "references/runtime-and-visualization.md": "cea8fe2555585ac5854f13d083f18759d5dfb3ba",
+        "references/state-machine-api.md": "f2bad589783a10f80c9a65a6823b8ac2c016200d"
+      }
+    },
+    "build-live-game": {
+      "files": {
+        "SKILL.md": "d6204f559e611690eb40f1f41f8276fad6aaf88c",
+        "references/achievements.md": "6528b71b294c8abcbfd967100bd1d7c80b469f2c",
+        "references/apis.md": "b718f5a1aaa63e1044a4e59f831f60e0423ed6cf",
+        "references/authentication.md": "8736f8fac43c06019a93320d11d3bce7d143ca9a",
+        "references/battlepass.md": "890a4dce894f649914867690324ce642419140b6",
+        "references/blueprints-and-samples.md": "2d11050eee4808f119e569078360b5a5fed7a376",
+        "references/cloud-code-cloudbehaviours.md": "19b91bce82e0727014fb6e9287590837d3894bc4",
+        "references/cloud-code-modules.md": "e75583815cef97e722ee3f33b83bdb147872eab4",
+        "references/cloud-code.md": "fc27180babf0f1a13e67c9ba54d00772364a9e33",
+        "references/cloud-save.md": "4692b0a1bc82d1ad450cd5934110de73deb01746",
+        "references/deployment.md": "725ac71f577d1d95874475f022370e68e737f647",
+        "references/player-account.md": "f6eeabe0a9467a0e0463c9570904110f29ceee00",
+        "references/remote-config.md": "09f3edbf595ca6ccbf0b84df6e2b192fe9a9bf57",
+        "references/tooling.md": "8c4e84f40a244dc287d1a685a9abe9c688e92fb2",
+        "references/ugs-cli.md": "d8872173ec71a389e9cef6438f7d2f6d1c887c2f"
+      }
+    },
+    "craft-game-floors": {
+      "files": {
+        "SECURITY.md": "a60c588118b3cd208e1a7e69a2b1d4cdc626fb90",
+        "SKILL.md": "d6d41aa1d86cda58401763f3df6f79edd95b60e5",
+        "references/art-direction.md": "0eb4cbe53dda9e782d48656d9237eca103dc5a8e",
+        "references/camera-rigs.md": "b37208cbd83b00f72d491b623786e1fa507e221c",
+        "references/character-motion.md": "7c6137f35d1affe662d417fdc9a8bf9dbfef7da8",
+        "references/game-audio.md": "b2a6ff6f5e03e27ea7eae24773f7730f0109459b",
+        "references/game-feel.md": "4a178f538a8681f5411d85fe367b57d0be09b575",
+        "references/game-shell.md": "e933c0efc86ee1b6950f29d1a0a0f5badec3f7a9",
+        "references/live-floor.md": "1ecb74b7f4b6677aab7ccc0edff57228527eb196",
+        "references/placeholder-assets.md": "5be2e582aeb55d153ba90454db7a120d1cc7a257",
+        "references/scene-lighting.md": "7ff2f0cd7af81f4b0f7c8a86561e93c9ab2d6698",
+        "references/toon-shading.md": "44d16d00fcc6f4f011aa2105caf3d1bfbe866b26",
+        "references/vfx.md": "a18b710b6aaaaeb749f49e9bb566c6d2f16182b5",
+        "references/visual-scorecard.md": "6919a658a17606cdbc12751db69eba1abb8dcc3f"
+      }
+    },
+    "create-2d-physics": {
+      "files": {
+        "SECURITY.md": "224f96d5f9dee4988c3d43afd54e647c215f1922",
+        "SKILL.md": "20d5a671dfbdb9e3dc71c1f1258c2ef1045ef2f8",
+        "references/2d-physics-core.md": "03e3828ed0ce552219060d98eb5ce82a079bb43a",
+        "references/legacy-2d-physics.md": "e48dc82e54bfa2e0b5617529b353cf31568e82f8"
+      }
+    },
+    "create-tile-palette-or-rule-tiles": {
+      "files": {
+        "SKILL.md": "cdb069cf61805011dc6d1414e6762e6e87e4e3d2",
+        "references/hexagonalruletile.md": "41a8dc2df8d801de9ef0fc22ac8145ea4d95d934",
+        "references/palette-create.md": "ebebee0b55cd7520e37d653a1617d0805b5a8bbf",
+        "references/ruletile-createempty.md": "3793fc49d6b243e6aaa5b47c9840635077a8f007",
+        "references/ruletile-createfromsegment.md": "35e822c1e9a4970f50bef1d40581f3672a4654d4",
+        "references/ruletile.md": "6a38f7df45b864e6b27052d32baa44256313c00e",
+        "scripts/CreatePaletteTemplate.cs": "461f3eceab44e160506da8f06eb91dfdea06f390",
+        "scripts/ManualWorkflowExample.cs": "3420c8cd16da0e011106e6722384999fd42cdc1d",
+        "scripts/RuleTileGenerator.cs": "d5069a5b791da34f3fcff0a3af3c5c549e963688",
+        "scripts/TilemapRuleTileCreateFromSegment.cs": "5c4fa20ab70cdf735c4227b89f453036a69041c3"
+      }
+    },
+    "fix-3d-physics-collisions": {
+      "files": {
+        "SECURITY.md": "f3f52d3bd56148d8fb1a7ad1411155e7acab85de",
+        "SKILL.md": "e489a29b0b159bb1d04b24688eadeaebf2c65076",
+        "references/collision-checklist.md": "3a949da6db3c68595bb8f99d14ac927e6feca884",
+        "references/collision-debugger.md": "3326a40c648367a9e26440acf9bd20eac683e892",
+        "references/other-symptoms.md": "7a8f5e5d3d5e30ce08ffaeead1abe6516d9ae36f",
+        "references/raycast-checklist.md": "db0b806fefa0b2349423c9cf14ef1ebdfb7dc58f",
+        "references/trigger-checklist.md": "e5d5756c97dc77458edf0af5fa4db5285322f4fc",
+        "scripts/CollisionDebugger.cs": "d67f94cfc1da2accb89be0ed9a5a9b072fe674af"
+      }
+    },
+    "generate-editor-search-query": {
+      "files": {
+        "SECURITY.md": "2a7b907f9ec4cf8bb5af503b68997b2dda788162",
+        "SKILL.md": "97a41474d2e75d3930f0d4aff8a3f058b361199a",
+        "references/open-search-window.md": "4db2eb4d678893998f026007ff4e1319f505eb27",
+        "references/query-patterns.md": "26315f11f276598af2c291e871ab10d7af5fb15d"
+      }
+    },
+    "implement-in-app-purchases": {
+      "files": {
+        "SKILL.md": "939f5921360497f2c4de573d2129388a447d942a",
+        "references/api-notes.md": "f2c15e8d3f988e3479a85d3eb8843bcd55eb345c",
+        "references/codeless-catalog.md": "96d59b7c6f6c1863931ac04b949ba4193de6ee1a",
+        "references/convert-adapty.md": "638ac144380ece55584add49b7a81ac2d83f3d01",
+        "references/convert-essentialkit.md": "701179c2377bcada757fd7abfd7abd65ab9fd7f9",
+        "references/convert-revenuecat.md": "f038cdf6374cf8e94d2b26210aad3212ba13e6a9",
+        "references/convert-unipay.md": "792117a08f7198339d09480cbb2b749bdbd1d800",
+        "references/migration-v4-to-v5.md": "5275bb3a66e5fb7ad77227e6728099f510080940",
+        "references/path-add-iap-to-new-project.md": "f6435e3f3e143d95bab506654d7f31935996ab4e",
+        "references/path-convert-native-google-billing.md": "e80f0c120b922977e6eb3d82c356225d81173109",
+        "references/path-convert-native-storekit.md": "8aa0bb7479798c80de938792c65eea21fa0f40b3",
+        "references/path-implement-iap-d2c.md": "819bba6da01d4eaf5096432645882f31b719f944",
+        "references/platform-notes.md": "62cbea5fcd7dbe5b4c1c98d0f8f3f8d494b89471",
+        "references/pre-check.md": "d67b231356aa634941d1d0f61b55ab297aa8f003"
+      }
+    },
+    "initialize-ai-navigation": {
+      "files": {
+        "SKILL.md": "572000a2e783f5687981fff269214aea0f000443",
+        "references/navigation-system.md": "b7b0ed15e47ad21febe74c454ef7b43e03130524"
+      }
+    },
+    "levelplay-unity-integration": {
+      "files": {
+        "SKILL.md": "2a55146c4404d33b5ba43ca7556cf81c10bb716a",
+        "references/banner-api.md": "1437687a5b3c2a04084db6984205ec6c405c6bc3",
+        "references/best-practices.md": "045b39ae95fd42c5c910445a66c2afce1141e37f",
+        "references/dependency-resolution.md": "25041bb01921533a29d007cae70a3588e2f8b42a",
+        "references/ilrd-api.md": "1102b2df43266a116b6b3b66c4ed706b866b7297",
+        "references/initialization-api.md": "ea9ad74741ed1b2db267b4a1a5788d1c73066bea",
+        "references/interstitial-api.md": "c394f99141debdb830f2270af798973fb8b060cc",
+        "references/ios-setup.md": "ef652f35f72f55ee88df99b596b5dd5b7155b3ac",
+        "references/migration-sdk-9.md": "998ca8f13d2d6ab507b44f319a3be222af357b43",
+        "references/privacy-settings.md": "d0e3d13680dcf29ff38de396733895d18b5020fe",
+        "references/rewarded-api.md": "15729d028716da72e1350f00cc4f9e105c48e77e",
+        "references/testing-and-validation.md": "b39be20f842ad318a724b680d5d4fe10ce10ef67",
+        "references/troubleshooting.md": "7bfacff230afde2a72a654f05399236be80f79e8"
+      }
+    },
+    "localize-unity-project": {
+      "files": {
+        "SKILL.md": "3039d7b25743f856f74a208b5c3922c60a327f03",
+        "references/api-notes.md": "05ae3cf4258e331b756000c51d4bc994d7edb89d",
+        "references/cjk-fonts.md": "7963832050e356d5f993bbcaafe3c2792d6e5941",
+        "references/docs-map.md": "a60ad53f931bcf71abe5f57436b96265ac497aec",
+        "references/table-completeness-check.md": "f6ca6523ce0b47b18defa73d22e8e35f54a88c85",
+        "references/translation-strategy.md": "561d8323c9d0d452fa4b55ce0c83c43a4974e3ac",
+        "references/troubleshooting.md": "1d2434b05efcb766e05c69a5ed60ba3a9a2958e0",
+        "scripts/L10nBatchProcessor.cs": "26483e7af587e7a7678d795b733ded51bce59853",
+        "scripts/LocalizedFontAsset.cs": "9ab56a4e9e32fc1c0a23d2e487258a94b9339353"
+      }
+    },
+    "manage-sprite-atlas": {
+      "files": {
+        "SKILL.md": "79f352c168b0e65917ff07154ec3bf2d28c987f4",
+        "references/addressables-delivery.md": "4cf2f2bdfc589ae05aec6ef0728f449774b92128",
+        "references/api.md": "144abcb891c1f0b1578cffeae433324ef814ae4e",
+        "references/best-practices.md": "cd612cf3b391a5a28e1af5249312c24d4c9f84c2",
+        "references/common-errors.md": "b7e8d54d152f3b8e1e4f4b14330d2984e3169b83",
+        "references/custom-packing.md": "36d49fcc4be37304021086bbf487068addc5b602",
+        "references/manual-authoring.md": "ecb705ce36646a706e0f9065e65dadd1b636dc30",
+        "resources/authoringvsruntime.cs": "27a4864fd070b8a0a77b1415abd9a75c0e2bcee4",
+        "resources/buildaddressablespostprocess.cs": "8ac1155c3fa4736626c2c25d6e9ba3d970c1ed52",
+        "resources/cacheloadedatlases.cs": "fddce3852ec80a63ce78fa0878ebecad475244c3",
+        "resources/cleanupbatchoperations.cs": "10d6dbebfb931a93105181aab44b8985ed8778a7",
+        "resources/createandconfiguremasteratlas.cs": "8ba86aee93879ded9d9ec15b172d74c2647524d4",
+        "resources/custompackersetup.cs": "548b79a602f0f0ff0ac3c20803123673a99375c9",
+        "resources/deprecatedmethods.cs": "5a6b5b848316713c29eb8f2c9876cc9272624257",
+        "resources/dontmodifywithoutsaving.cs": "2848f746ca33fa6d0c5d6794644da264fb92b534",
+        "resources/dontpackinruntimebuilds.cs": "2feec5e60b5500ecc09443ab293fb85c8b21d9dd",
+        "resources/dontscriptspriteatlasineditor.cs": "be0cb35f6d286ec9519ba151b08d5ea2f096b1ca",
+        "resources/editorconfiguration.cs": "e7e12968a137413c3da839816c18725ca8662bbc",
+        "resources/enablespritepacking.cs": "c30c6611f4b0d805e5615b34d9e601213ff64040",
+        "resources/gridspritepacker.cs": "e4251e0aa0460fc1f48bf5386b8a01d5f00b3f9b",
+        "resources/handlelatebinding.cs": "39c44bf97f5eb008203ca57999af79d53c86d954",
+        "resources/handlenullcases.cs": "d05cc3129f94843d8d412249f0c4c9af94e68f0e",
+        "resources/migratev1tov2.cs": "5165ee1b2139cdd886badd16148d283d537ef097",
+        "resources/multipagepacker.cs": "07af02d2c2b7f4d89c83cb143c6b9c5d9e43107b",
+        "resources/optimizetexturesettings.cs": "8ebb20e80f805778390534c287cf3a486cdac506",
+        "resources/packerdebugging.cs": "6ea64877dc1eeac4b3b51635192954507c51ce45",
+        "resources/packtransform.cs": "458834a4cbed94bc2d608c21223f38d987a61f5e",
+        "resources/platformnames.cs": "872ae7c86f8701618bb56552d3f8b9ec747713a2",
+        "resources/queryspritesefficiently.cs": "8be4fb9facfb4741da59befaa139f7dfbc8c2c80",
+        "resources/registercallbacks.cs": "1950fca2de84aa2b388b7000b6a26b259d0c67c4",
+        "resources/runtimeatlasloader.cs": "115672b1e4fb06f28495e68638ebd2d8c06dfcf2",
+        "resources/runtimespriteaccess.cs": "a286fbb0568d11a7e03f7717e77f869e6e039e7f",
+        "resources/savespriteatlasasset.cs": "a39bae6dc60ebbb9f11f9ed1b8011945ae14af0f",
+        "resources/scriptablepacker.cs": "9b919ef33519a2bd80b9c7beec526fd3f87e1494",
+        "resources/setincludeinbuild.cs": "aebca3b0b4f4e59496a5c80f4084b5e39a5513b6",
+        "resources/sizeoptimizedpacker.cs": "9acbc09a2bdb72f7f30ce4f092c1c0cbcccf7b51",
+        "resources/spriteatlaslatebinding.cs": "2a87ee051c536a9ab142fa889be8b43b717f581a",
+        "resources/spriteatlasprebuildgenerator.cs": "d60a2ebba4f4224ed214973f511d5affa42a7fac",
+        "resources/spritedata.cs": "9ef717428ff919211e5b02683eda298971a3afd5",
+        "resources/spritepack.cs": "3789be6b8fdc0eb8d5531e0c5ec4d8f2c3da268b",
+        "resources/texturedata.cs": "891a8c734e46b3374669224d77ab82cf49b30c19",
+        "resources/updatebuildscripts.cs": "76ecba9a077bc119f012ea4d23b6ee9225870c16",
+        "resources/updatesettingsconfiguration.cs": "340a0ceddb4d21af29a47cfa733a864360379ebd",
+        "resources/usevariantswisely.cs": "1bdca5920e3084706cd29e3d1c8e76f522bead5e",
+        "resources/variantatlas.cs": "20e4ff4e577e297f7db8af2a877e44f900f3b18d"
+      }
+    },
+    "migrate-birp-to-urp": {
+      "files": {
+        "SECURITY.md": "859582656751536c26410b7345bfb3c2d18aa239",
+        "SKILL.md": "23451009a534cef511f0a635f48bb088f2b11eba",
+        "references/capturing-the-editor.md": "af4c0e16e9aa0e93373338d05c9d84ce4c3489fa",
+        "references/complex-shader-situations.md": "b5b0ecf4abcf5b2b79873b5bdad4f2aa8756fa2d",
+        "references/custom-shader-triage.md": "cfe6258ae0d1301ff88aeaee076efe0089e37389",
+        "references/implementation-patterns.md": "0a0d9e2996573ec62ee4af204b8cd12d76c82f05",
+        "references/migration-workflow.md": "1e00697ea6803ec269b50c76923709878faba40a",
+        "references/quality-settings-map.md": "e1f6b9930f46ee13f5907ba8c16c45a2d5b8b71b"
+      }
+    },
+    "new-unity-project": {
+      "files": {
+        "SECURITY.md": "f4a022d1929e29d5e5a3f2793856db0a154cbfb6",
+        "SKILL.md": "b90120f6e9db51e63b20097ca0ca84a224d8c873",
+        "references/skill-setup.md": "ae8a56478e8dcf9c64c041559b9a678755f20a13"
+      }
+    },
+    "optimize-audio": {
+      "files": {
+        "SECURITY.md": "d35abe8c9e0256bd6ef9c6d0084f97d64d4ff6ef",
+        "SKILL.md": "22a9459d5d1775574ca803e336c644f9b35b976b",
+        "resources/audio-import-api.md": "6509340d4edeb8eca8b6705794f9028a89fc35dd",
+        "resources/platform-settings.md": "bf4b7858fde96c5a70bfbafafd4b9ef21c525a89"
+      }
+    },
+    "optimize-text-mesh-pro": {
+      "files": {
+        "SKILL.md": "a3fd4fd957d3acc708a2f56f35c3651927319174"
+      }
+    },
+    "optimize-web": {
+      "files": {
+        "SECURITY.md": "e46b4402ae5c22f27867a85b92742d64eed67662",
+        "SKILL.md": "ef7cb2b9ddaba767820642cdd312d940244449d8",
+        "scripts/WebOptimizer.cs": "a15e2c16f06224c71a769d0ff7bd4400290c0896",
+        "scripts/toktx-examples.sh": "14e1698ee947f4a45d8c7c530d42b94b24a391a9"
+      }
+    },
+    "setup-multiplayer-services": {
+      "files": {
+        "SKILL.md": "c2d98d1f18a2df51bd75dffad767816fd0d1776b",
+        "references/dgs-entrypoint.md": "9b10c66f9eb9b94caaca86e00f41aee1ba0c0a84",
+        "references/entrypoints.md": "ef73f2e60412cb070f2da92a1646d1ded17456fe",
+        "references/examples.md": "93cfd49e9bedce99090179a36d9bf19aaba0f0f7",
+        "references/implementation-fit.md": "606555c302698c108c892eba43f3f1e1e528aed6",
+        "references/underlying-services.md": "272c5df8c34009a5605ef2cf7249aa99165de5c6",
+        "references/workflows-prerequisites.md": "bb000798263acaa1227bae7b11cef4089d4fc1d0"
+      }
+    },
+    "setup-vivox-voice-chat": {
+      "files": {
+        "SECURITY.md": "d186da7ea1f3556e8b2feac767e3d11cca96b3f8",
+        "SKILL.md": "17d2ef786fff2c7550758a91c82d355b2d4fdddf",
+        "references/events-and-participants.md": "b8c2c86417f0e23aae930097c811f9c508fc25ed",
+        "references/init-and-login.md": "705de8f8e837dd1af7ec9b316ff2d4c99034b759",
+        "references/text-chat.md": "d679db5d6fec98a39576e58dcd9aa034fe51a733",
+        "references/troubleshooting.md": "e33ce8574f7386a02481aa6656ae6d1b68f07606",
+        "references/voice-channels.md": "e5e44706247a2dba8a4e690b6cdbb806052dceec"
+      }
+    },
+    "shader-graph-create-custom-node": {
+      "files": {
+        "SKILL.md": "691ca95b4eed8631bb72341badfd8ed1c215e4e2",
+        "resources/all_hints.hlsl": "aa5547f0ce2b26dbfd738052ea0dce5461bda86a"
+      }
+    },
+    "sprite-editor": {
+      "files": {
+        "SECURITY.md": "ad87b37e88615456d300940a6948465c20c86fc7",
+        "SKILL.md": "224863663cce10519cb1c458e0d9ae7301e5123a",
+        "references/api_reference.md": "4df0181bcb070e570989015f57384a91a8188b4a",
+        "references/background.md": "296dbf2cd2071c1ea7d63ec819d5d298a58d79f3",
+        "references/templates.md": "ee8c0c34bf63b2061a9e3a8c1d5b65ad3427e188",
+        "scripts/AutomaticSliceTexture.cs": "ca6ad91efe661025ec533a2067eb37dad2de6260",
+        "scripts/GenerateNewSpriteRects.cs": "b172d53a7536c43d269261617d7bbb096efa6d9e",
+        "scripts/GetTextureSourceImageSize.cs": "4bc4007af00c75b44d479636bb1dda44e54afffd",
+        "scripts/GetTextureToSlice.cs": "b7083102105ddddcbab506add859adc5aa280360",
+        "scripts/GridSliceTexture.cs": "fdd2be9f479c5179dcb4f1f5f915f5fd708b3e49",
+        "scripts/IsometricSliceTexture.cs": "2b7a88a39c7828c9ae5fccda54022db73d757615",
+        "scripts/README.md": "dfb1b96fea0ccdb2deace7d5232533669beb5582",
+        "scripts/SetPivotExample.cs": "96ba03445bf873ea36d66eef12f5022559b8b8f4",
+        "scripts/SpriteToPng.cs": "43aee3ef04fa2f61da2dd8e686571dd1e338eeef"
+      }
+    },
+    "sprite-segment-3x3grid": {
+      "files": {
+        "SKILL.md": "cff84f61d16af3f3f8429ffb72a840b29be664ce",
+        "scripts/SpriteGridAnalysis.cs": "7acdca0f9a7e4c5a2cce91f1f907b8b92cce6231"
+      }
+    },
+    "ui-imgui": {
+      "files": {
+        "SKILL.md": "f424cb2173a9ac48f2bffd7e446d38783b8865dd",
+        "references/gui-elements.md": "86534fa024e8661ddc4a5a30224a2fc4e20762b3",
+        "references/templates.md": "b580bb5f8cfd2f00acf067eede0864a3c0666538"
+      }
+    },
+    "ui-ugui": {
+      "files": {
+        "SKILL.md": "52ebaf7195f50a8b1bc47746768ede04faebd7e0",
+        "references/scrollview-setup.md": "91df179446d9b942930869cb0a42d2d1f99e85a0"
+      }
+    },
+    "ui-uitk": {
+      "files": {
+        "SKILL.md": "92c3a5ee470457e06a16d9e92d19e8382868e93a",
+        "references/common-issues.md": "b0d8140424a448bd5291ac16562684defb230a60",
+        "references/custom-elements.md": "b79651c34bc47556ccd460a6978cae665573806f",
+        "references/painter2d.md": "690ff0b231292ec389f9e11eaa94153d004f1cfe",
+        "references/pointermanipulator-guide.md": "2afa01cb85f7930d3ffddb4c4d7f9db569e74032",
+        "references/svg-icons.md": "c4982470ef9f7c0c6d847bec6129b0a32cf1fb3d",
+        "references/ui-runtime-binding.md": "b2e2a688daf99f32c3d1d4794cd5a223aca08782",
+        "references/uss-guide.md": "6bfeb58e05228317692bd5cd165963d1dc93cb57"
+      }
+    },
+    "ui": {
+      "files": {
+        "SKILL.md": "46b3c5731298bf3c0c499045f4c8cef87e49d0b1"
+      }
+    },
+    "unity-cli": {
+      "files": {
+        "CHANGELOG.md": "0dc4e36a3cfe98cf4cd968c485effb57cf05f42d",
+        "SECURITY.md": "6854f7653083e8316e0c690fc6500e38aa64d4a6",
+        "SKILL.md": "ca209a523381cb4474f183602ad1ee71e6475bed",
+        "references/auth-license-cloud.md": "7cbf5bb9eca2aa731ac45d1857168849b5889c22",
+        "references/build-run-test.md": "c7f5c02ce4c2c6b1dea544670a0a06e0e74ed1f4",
+        "references/cloud-automation.md": "173eddd71862047ba6cf709a5f60cf4c2e6661b9",
+        "references/collaboration.md": "cac896bd58e0f981bafcb966167cdd335c08f93e",
+        "references/config-hub.md": "f950d9fabeb1c76ca7b32eaa88fdfb9486da7a36",
+        "references/diagnostics-maintenance.md": "97e756d777ed5a887ce28f41a40436a0543248d6",
+        "references/docs-workflow.md": "412c2916249301f5348e7e558a651d308fa76047",
+        "references/editors-install.md": "bd2990aaa11aa57cfc8ff3e3ce4e5e9385190ea5",
+        "references/integration-advanced.md": "f6a65d6c1b66e926f21748ed8c39107975602250",
+        "references/playmode-verification-loop.md": "b2ef306d4fe1fec449dae3344bd9a4960cdf47ab",
+        "references/projects-templates.md": "c0b4ee9bdaa6111cd37143017ab05ea7d69bc71a",
+        "references/version-control.md": "23c37e8eaedccdd110fd62df4be18dab776e096b"
+      }
+    },
+    "unity-package-management": {
+      "files": {
+        "SKILL.md": "dbf6608c4dfe87b8e2755ca7662e23b4ce886864",
+        "references/select-packages.md": "2ce445bd50689e6edcd0247b412bb8782a089478"
+      }
+    },
+    "unity-pipeline": {
+      "files": {
+        "SECURITY.md": "ad74dc001a8e0d525fe0640064c7d285e733a39b",
+        "SKILL.md": "f2ab1d4f26198d95cb05de01ac79a3a5a674d71e"
+      }
+    },
+    "urp-postprocessing": {
+      "files": {
+        "SECURITY.md": "6931d8c41d46e252956dd682e9a550dba24da1be",
+        "SKILL.md": "f7c77f764ff71bd59c95e8089ab07bc0d5a369d8",
+        "references/code-templates.md": "30451db2b5b57c4ce27702adcd7ecb2a56727067",
+        "references/effect-reference.md": "516c808b5f1eab0c49affecd99fe7f2e9a883f70"
+      }
+    },
+    "validate-urp-render-graph-renderer-feature": {
+      "files": {
+        "SKILL.md": "d3b43d6ea540f5a50279e07a5de4f69902652ef1"
+      }
+    }
+  }
+}

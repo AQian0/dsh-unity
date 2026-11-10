@@ -63,7 +63,10 @@
     "test:unit": "node --test \"test/**/*.test.ts\"",
     "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='src/**/*.ts' --test-coverage-exclude='lib/**' \"test/**/*.test.ts\"",
     "test": "pnpm run check && pnpm run typecheck && pnpm run test:unit",
-    "validate": "node scripts/validate-skills.ts"
+    "validate": "node scripts/validate-skills.ts",
+    "upstream:check": "node scripts/upstream.ts --check",
+    "upstream:fetch": "node scripts/upstream.ts --fetch",
+    "upstream:lock": "node scripts/upstream.ts --write-lock"
   },
   "devDependencies": {
     "@deepseek-ai/schemastery": "3.19.0",

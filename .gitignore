@@ -13,6 +13,9 @@ lib/
 # Local validator output; the published package never contains audit reports.
 reports/
 
+# Upstream drift previews; never published.
+.upstream-preview/
+
 # Packaging artifacts; pnpm-lock.yaml is the one lockfile that IS committed.
 *.tgz
 
