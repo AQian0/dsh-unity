@@ -68,6 +68,12 @@ export interface SkillProviderControl {
   readonly invalidate: () => void;
 }
 
+/** `FsTarget` from the `fs/observed` event: the path and its display form. */
+export interface FsTarget {
+  readonly targetKey: string;
+  readonly displayPath: string;
+}
+
 /** Options the registry passes to discovery and loading. */
 export interface SkillLookupOptions {
   readonly cwd?: string | undefined;
@@ -127,9 +133,13 @@ export interface SessionLike {
  *
  * Registrations made through this context land in the agent's own scope layer,
  * which is what makes the provider win duplicate names and vary by project.
+ * `effect` and `on` are the scoped lifecycle and dispatch seams the plugin uses
+ * for per-agent behavior.
  */
 export interface AgentContext {
   get(name: string): unknown;
+  effect?(create: () => () => void, label?: string): () => void;
+  on?(event: string, listener: (...args: unknown[]) => unknown): () => void;
 }
 
 /** The agent surface this plugin touches. */
@@ -155,6 +165,6 @@ export interface PluginContext {
   readonly logger: Logger;
   readonly skills: SkillsService;
   get(name: string): unknown;
-  on(event: string, listener: (payload: unknown) => unknown): () => void;
+  on(event: string, listener: (...args: unknown[]) => unknown): () => void;
   effect(create: () => () => void, label?: string): () => void;
 }

@@ -28,9 +28,15 @@ interface AgentScopedServices {
 /** A fake agent, exposing what the plugin registered on it. */
 interface AgentFake extends AgentLike {
   readonly session: { id: string; header: { cwd: string } };
-  readonly ctx: { get(name: string): unknown };
+  readonly ctx: {
+    get(name: string): unknown;
+    on?(event: string, listener: (...args: unknown[]) => unknown): () => void;
+    effect?(create: () => () => void, label?: string): () => void;
+  };
+  readonly handlers: Map<string, (...args: unknown[]) => unknown>;
   skillsCalls: number;
   promptCalls: number;
+  invalidations: number;
   provider: SkillProvider | undefined;
   context: PromptContext | undefined;
   providerDisposed: boolean;
@@ -40,7 +46,7 @@ interface AgentFake extends AgentLike {
 /** What the fake context recorded. */
 interface HarnessRecord {
   globalProviders: SkillProvider[];
-  handlers: Map<string, (payload: unknown) => unknown>;
+  handlers: Map<string, (...args: unknown[]) => unknown>;
   warnings: string[];
   cleanup: (() => void) | undefined;
 }
@@ -57,7 +63,7 @@ function createHarness(agents: AgentsService | undefined): { ctx: PluginContext;
       },
     },
     get: (name: string): unknown => (name === 'agents' ? agents : undefined),
-    on: (event: string, listener: (payload: unknown) => unknown) => {
+    on: (event: string, listener: (...args: unknown[]) => unknown) => {
       record.handlers.set(event, listener);
       return () => record.handlers.delete(event);
     },
@@ -70,12 +76,23 @@ function createHarness(agents: AgentsService | undefined): { ctx: PluginContext;
 }
 
 /** A fake agent whose scoped services record what they receive. */
-function createAgent(id: string, cwd: string, options: { skills?: boolean; prompt?: boolean } = {}): AgentFake {
+function createAgent(
+  id: string,
+  cwd: string,
+  options: { skills?: boolean; prompt?: boolean; lifecycle?: boolean } = {},
+): AgentFake {
+  const handlers = new Map<string, (...args: unknown[]) => unknown>();
+  const effectDisposers: Array<() => void> = [];
   const services: AgentScopedServices = {
     skills: {
       registerProvider: (create) => {
         agent.skillsCalls += 1;
-        agent.provider = create({ signal: new AbortController().signal, invalidate: () => {} });
+        agent.provider = create({
+          signal: new AbortController().signal,
+          invalidate: () => {
+            agent.invalidations += 1;
+          },
+        });
         return () => {
           agent.providerDisposed = true;
         };
@@ -97,9 +114,26 @@ function createAgent(id: string, cwd: string, options: { skills?: boolean; promp
         if (name === 'systemPrompt') return options.prompt === false ? undefined : services.systemPrompt;
         return undefined;
       },
+      ...(options.lifecycle === false
+        ? {}
+        : {
+            on: (event: string, listener: (...args: unknown[]) => unknown) => {
+              handlers.set(event, listener);
+              return () => handlers.delete(event);
+            },
+            effect: (create: () => () => void) => {
+              const dispose = create();
+              effectDisposers.push(dispose);
+              return () => {
+                for (const entry of effectDisposers.splice(0)) entry();
+              };
+            },
+          }),
     },
+    handlers,
     skillsCalls: 0,
     promptCalls: 0,
+    invalidations: 0,
     provider: undefined,
     context: undefined,
     providerDisposed: false,
@@ -110,13 +144,21 @@ function createAgent(id: string, cwd: string, options: { skills?: boolean; promp
 
 /** Create a throwaway Unity project. */
 async function createProject(options: { version?: string; packages?: Record<string, string> } = {}): Promise<string> {
-  const { version = '6000.3.14f1', packages = { 'com.unity.ugui': '2.0.0' } } = options;
   const root = await mkdtemp(join(tmpdir(), 'dsh-unity-lifecycle-'));
+  await writeProject(root, options);
+  return root;
+}
+
+/** Write the files that identify a Unity project at an existing directory. */
+async function writeProject(
+  root: string,
+  options: { version?: string; packages?: Record<string, string> } = {},
+): Promise<void> {
+  const { version = '6000.3.14f1', packages = { 'com.unity.ugui': '2.0.0' } } = options;
   await mkdir(join(root, 'ProjectSettings'), { recursive: true });
   await writeFile(join(root, 'ProjectSettings', 'ProjectVersion.txt'), `m_EditorVersion: ${version}\n`);
   await mkdir(join(root, 'Packages'), { recursive: true });
   await writeFile(join(root, 'Packages', 'manifest.json'), JSON.stringify({ dependencies: packages }));
-  return root;
 }
 
 /** Fire the recorded `agent/created` handler. */
@@ -124,6 +166,13 @@ async function created(record: HarnessRecord, agent: AgentFake): Promise<void> {
   const handler = record.handlers.get('agent/created');
   assert.ok(handler);
   await handler({ agent });
+}
+
+/** Fire the recorded `agent/pre-step` handler and report the downstream decision. */
+async function preStep(agent: AgentFake): Promise<unknown> {
+  const handler = agent.handlers.get('agent/pre-step');
+  assert.ok(handler, 'the plugin registers an agent-scoped pre-step listener');
+  return handler({ agent }, async () => ({ kind: 'enter', messages: [] }));
 }
 
 const CONFIG: PluginConfig = { watchSkills: false };
@@ -262,7 +311,105 @@ test('disposal unwinds the listeners and the watcher', () => {
   const { ctx, record } = createHarness({ list: () => [] });
   apply(ctx, { watchSkills: true });
   assert.equal(typeof record.cleanup, 'function');
-  assert.equal(record.handlers.size, 2);
+  // agent/created, agent/disposed, and fs/observed; the watcher is separate.
+  assert.equal(record.handlers.size, 3);
   record.cleanup?.();
   assert.equal(record.handlers.size, 0);
+});
+
+test('a package installed while the catalog is warm invalidates it from the pre-step check', async () => {
+  const root = await createProject();
+  const { ctx, record } = createHarness({ list: () => [] });
+  apply(ctx, CONFIG);
+  const agent = createAgent('s-cache', root);
+  try {
+    await created(record, agent);
+    const before = (await agent.provider?.list({})) ?? [];
+    const visibleBefore = before.find((candidate) => candidate.name === 'asset-transformer-toolkit');
+    assert.equal(visibleBefore?.invocation.modelInvocable, false, 'the toolkit skill needs its package');
+
+    await writeProject(root, {
+      packages: { 'com.unity.ugui': '2.0.0', 'com.unity.industry.toolkit': '4.0.0' },
+    });
+    const invalidations = agent.invalidations;
+    await preStep(agent);
+    assert.ok(agent.invalidations > invalidations, 'the pre-step fingerprint check invalidates the warm catalog');
+
+    const after = (await agent.provider?.list({})) ?? [];
+    const visibleAfter = after.find((candidate) => candidate.name === 'asset-transformer-toolkit');
+    assert.equal(visibleAfter?.invocation.modelInvocable, true);
+    assert.match(
+      typeof agent.context?.text === 'function' ? agent.context.text({}) : '',
+      /Unity project: /,
+      'the context reads the refreshed facts',
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('a pre-step with unchanged facts leaves the catalog cache alone', async () => {
+  const root = await createProject();
+  const { ctx, record } = createHarness({ list: () => [] });
+  apply(ctx, CONFIG);
+  const agent = createAgent('s-stable', root);
+  try {
+    await created(record, agent);
+    await agent.provider?.list({});
+    const invalidations = agent.invalidations;
+    await preStep(agent);
+    assert.equal(agent.invalidations, invalidations, 'an unchanged fingerprint must not append a replacement catalog');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('a repository-root project skill wins when the Unity project sits in a subdirectory', async () => {
+  const repo = await mkdtemp(join(tmpdir(), 'dsh-unity-monorepo-'));
+  try {
+    await mkdir(join(repo, '.git'), { recursive: true });
+    const unityRoot = join(repo, 'game');
+    await writeProject(unityRoot);
+    await mkdir(join(repo, '.dsh', 'skills', 'ui-uitk'), { recursive: true });
+    await writeFile(
+      join(repo, '.dsh', 'skills', 'ui-uitk', 'SKILL.md'),
+      '---\nname: ui-uitk\ndescription: repository copy\n---\n',
+    );
+
+    const { ctx, record } = createHarness({ list: () => [] });
+    apply(ctx, CONFIG);
+    const agent = createAgent('s-monorepo', join(unityRoot, 'Assets'));
+    await mkdir(join(unityRoot, 'Assets'), { recursive: true });
+    await created(record, agent);
+
+    const names = ((await agent.provider?.list({})) ?? []).map((candidate) => candidate.name);
+    assert.equal(names.includes('ui-uitk'), false, 'the DSH project root, not the Unity root alone, owns the name');
+    assert.equal(names.length, 33);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('fs/observed invalidates only for SKILL.md files under the skill directory', async () => {
+  const { ctx, record } = createHarness({ list: () => [] });
+  apply(ctx, { watchSkills: false });
+  const agent = createAgent('s-observed', '/tmp');
+  await created(record, agent);
+  const listener = record.handlers.get('fs/observed');
+  assert.ok(listener);
+
+  const invalidations = agent.invalidations;
+  listener({ displayPath: join(process.cwd(), 'skills', 'ui-uitk', 'SKILL.md') }, { kind: 'present' }, undefined);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.ok(agent.invalidations > invalidations);
+
+  const afterSkill = agent.invalidations;
+  listener(
+    { displayPath: join(process.cwd(), 'skills', 'ui-uitk', 'references', 'api.md') },
+    { kind: 'present' },
+    undefined,
+  );
+  listener({ displayPath: join(tmpdir(), 'elsewhere', 'SKILL.md') }, { kind: 'present' }, undefined);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(agent.invalidations, afterSkill, 'resource files and foreign paths do not change discovery');
 });

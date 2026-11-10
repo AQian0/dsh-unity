@@ -19,7 +19,7 @@
  * @module @aqian0/dsh-unity
  */
 
-import { join, resolve } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DEFAULT_PROVIDER_NAME, DEFAULT_RANK, DEFAULT_WORKSPACE_SKILLS } from './config.ts';
@@ -28,7 +28,7 @@ import type { RegistrySettings } from './registry.ts';
 import { createParseCache } from './skills.ts';
 import type { ParseCache } from './skills.ts';
 import { startSkillsWatcher } from './watch.ts';
-import type { AgentLike, AgentsService, PluginContext } from './harness.ts';
+import type { AgentLike, AgentsService, FsTarget, PluginContext } from './harness.ts';
 
 /** Loader row name. */
 export const name = 'unity-skills';
@@ -79,6 +79,46 @@ export function apply(ctx: PluginContext, config: PluginConfig = {}): void {
 
   const disposers: Array<() => void> = [];
   let fallbackRegistered = false;
+  let refreshQueued = false;
+
+  /**
+   * Invalidate every catalog once per microtask batch.
+   *
+   * Both the watcher and `fs/observed` can report the same edit; coalescing keeps
+   * one file save from appending one replacement catalog per event.
+   */
+  const refreshCatalog = (): void => {
+    if (refreshQueued) return;
+    refreshQueued = true;
+    queueMicrotask(() => {
+      refreshQueued = false;
+      settings.parseCache?.clear();
+      registry.invalidateAll();
+    });
+  };
+
+  /**
+   * Observe the harness's authoritative file observation.
+   *
+   * `fs/observed` is emitted synchronously by the first-party write/edit tools,
+   * so a model-authored `SKILL.md` change invalidates the catalog without
+   * waiting for the host watcher. The listener must stay synchronous and must
+   * not throw.
+   */
+  const onFsObserved = (...args: unknown[]): void => {
+    try {
+      const target = args[0] as FsTarget | undefined;
+      const displayPath = target?.displayPath;
+      if (typeof displayPath !== 'string' || displayPath === '') return;
+      const resolved = resolve(displayPath);
+      if (basename(resolved) !== 'SKILL.md') return;
+      const relativePath = relative(settings.skillDir, resolved);
+      if (relativePath === '' || relativePath.startsWith('..') || isAbsolute(relativePath)) return;
+      refreshCatalog();
+    } catch {
+      // An observation listener that throws fails the tool call; stay inert.
+    }
+  };
 
   /** Serve one global provider when this context cannot register per agent. */
   const ensureFallback = (): void => {
@@ -111,15 +151,14 @@ export function apply(ctx: PluginContext, config: PluginConfig = {}): void {
     for (const agent of agents.list()) void onCreated({ agent });
   }
 
+  disposers.push(ctx.on('fs/observed', onFsObserved));
+
   if (settings.watchSkills) {
     disposers.push(
       startSkillsWatcher({
         dir: settings.skillDir,
         logger: ctx.logger,
-        onChange: () => {
-          settings.parseCache?.clear();
-          registry.invalidateAll();
-        },
+        onChange: refreshCatalog,
       }),
     );
   }

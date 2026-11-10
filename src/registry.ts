@@ -10,15 +10,18 @@
  * project the agent is actually working in.
  *
  * This module keeps that bookkeeping: one shared reader and parse cache, one fact
- * cache per working directory, and one registration per live agent. It also
- * implements the provider itself, which re-reads the project facts whenever the
- * harness asks for the catalog, so a changed editor version or package list
- * invalidates the catalog instead of waiting for a restart.
+ * cache per working directory, and one registration per live agent. The DSH skill
+ * registry caches a completed catalog per cwd, scope chain, and revision, so a
+ * changed editor version or package list is only noticed when the provider calls
+ * `control.invalidate()`. Relying on `list()` alone would therefore miss every
+ * change that happens while the catalog cache is warm; each registration runs a
+ * cheap `agent/pre-step` fingerprint check instead, and re-gates only when one of
+ * the three files that decide the facts actually moved.
  *
  * @module dsh-unity/lib/registry
  */
 
-import { detectProject, factsKey, readProjectSkillNames } from './project.ts';
+import { detectProject, factsKey, projectFingerprint, readProjectSkillNames } from './project.ts';
 import type { DetectOptions, ProjectFacts } from './project.ts';
 import { gateCatalog, renderContext } from './gating.ts';
 import type { GatedCatalog, HiddenSkill } from './gating.ts';
@@ -40,6 +43,15 @@ import type {
 
 /** How long detected project facts stay fresh before they are read again. */
 export const FACTS_TTL_MS = 2000;
+
+/** How long a `unity` CLI lookup stays fresh. */
+export const CLI_TTL_MS = 60_000;
+
+/** How often a session outside a project re-checks whether one appeared. */
+const PROJECT_APPEARED_RECHECK_MS = 10_000;
+
+/** Upper bound on the per-cwd fact and project-skill caches. */
+const MAX_CACHE_ENTRIES = 64;
 
 /** Prompt order for the contributed Unity context: after policies, before harness source. */
 const CONTEXT_ORDER = 180;
@@ -63,10 +75,13 @@ export interface RegistrySettings {
 interface Registration {
   readonly id: string;
   readonly agent: AgentLike;
+  cwd: string | undefined;
   control: SkillProviderControl | undefined;
   facts: ProjectFacts | undefined;
   hidden: readonly HiddenSkill[];
   lastKey: string;
+  fingerprint: string;
+  lastCheckAt: number;
   disposers: Array<() => void>;
 }
 
@@ -75,8 +90,8 @@ export interface RegistryOptions {
   readonly ctx: PluginContext;
   readonly settings: RegistrySettings;
   readonly reader?: UnitySkillReader;
-  readonly detect?: (cwd: string) => Promise<ProjectFacts | undefined>;
-  readonly readProjectSkills?: (root: string) => Promise<Set<string>>;
+  readonly detect?: (cwd: string, signal?: AbortSignal) => Promise<ProjectFacts | undefined>;
+  readonly readProjectSkills?: (roots: readonly string[]) => Promise<Set<string>>;
 }
 
 /** The result of trying to register one agent. */
@@ -88,10 +103,25 @@ export interface AgentRegistry {
   size(): number;
   add(agent: AgentLike | undefined): Promise<RegistrationResult>;
   remove(agent: AgentLike | undefined): void;
-  factsFor(cwd: string | undefined): Promise<ProjectFacts | undefined>;
+  factsFor(cwd: string | undefined, signal?: AbortSignal): Promise<ProjectFacts | undefined>;
   projectSkillsFor(facts: ProjectFacts | undefined): Promise<Set<string>>;
   invalidateAll(): void;
   disposeAll(): void;
+}
+
+/** Keep a bounded insertion-ordered map: the oldest entry leaves first. */
+function remember<K, V>(map: Map<K, V>, key: K, value: V): V {
+  if (!map.has(key) && map.size >= MAX_CACHE_ENTRIES) {
+    const oldest = map.keys().next().value;
+    if (oldest !== undefined) map.delete(oldest);
+  }
+  map.set(key, value);
+  return value;
+}
+
+/** Whether a rejected promise is an abort, which callers let through. */
+function isAbort(error: unknown): boolean {
+  return (error as { name?: unknown } | undefined)?.name === 'AbortError';
 }
 
 /**
@@ -114,41 +144,48 @@ export function createAgentRegistry(options: RegistryOptions): AgentRegistry {
       logger: ctx.logger,
     });
 
-  const detectProjectFacts = options.detect ?? ((cwd: string) => detectProject(cwd, resolveDetectOptions(ctx)));
-  const readOverrides = options.readProjectSkills ?? ((root: string) => readProjectSkillNames(root));
+  const detectProjectFacts =
+    options.detect ?? ((cwd: string, signal?: AbortSignal) => detectProject(cwd, resolveDetectOptions(ctx, signal)));
+  const readOverrides = options.readProjectSkills ?? ((roots: readonly string[]) => readProjectSkillNames(roots));
 
   const factsByCwd = new Map<string, { facts: ProjectFacts | undefined; at: number }>();
   const overridesByRoot = new Map<string, { names: Set<string>; at: number }>();
   const states = new Map<string, Registration>();
 
-  async function factsFor(cwd: string | undefined): Promise<ProjectFacts | undefined> {
+  async function factsFor(
+    cwd: string | undefined,
+    signal?: AbortSignal,
+    force = false,
+  ): Promise<ProjectFacts | undefined> {
     if (typeof cwd !== 'string' || cwd === '') return undefined;
     const cached = factsByCwd.get(cwd);
     const now = Date.now();
-    if (cached !== undefined && now - cached.at < FACTS_TTL_MS) return cached.facts;
+    if (!force && cached !== undefined && now - cached.at < FACTS_TTL_MS) return cached.facts;
     let facts: ProjectFacts | undefined;
     try {
-      facts = await detectProjectFacts(cwd);
+      facts = await detectProjectFacts(cwd, signal);
     } catch (error) {
+      if (isAbort(error) || signal?.aborted === true) throw error;
       ctx.logger.warn(`unity skills: project detection failed for ${cwd}: ${String(error)}`);
       facts = undefined;
     }
-    factsByCwd.set(cwd, { facts, at: now });
+    remember(factsByCwd, cwd, { facts, at: now });
     return facts;
   }
 
   async function overridesFor(facts: ProjectFacts | undefined): Promise<Set<string>> {
     if (facts === undefined || !settings.respectProjectRoots) return new Set<string>();
+    const key = `${facts.dshRoot}\u0000${facts.root}`;
+    const cached = overridesByRoot.get(key);
     const now = Date.now();
-    const cached = overridesByRoot.get(facts.root);
     if (cached !== undefined && now - cached.at < FACTS_TTL_MS) return cached.names;
     let names: Set<string>;
     try {
-      names = await readOverrides(facts.root);
+      names = await readOverrides([facts.dshRoot, facts.root]);
     } catch {
       names = new Set<string>();
     }
-    overridesByRoot.set(facts.root, { names, at: now });
+    remember(overridesByRoot, key, { names, at: now });
     return names;
   }
 
@@ -156,8 +193,9 @@ export function createAgentRegistry(options: RegistryOptions): AgentRegistry {
   async function view(
     cwd: string | undefined,
     lookup: SkillLookupOptions,
+    force = false,
   ): Promise<GatedCatalog & { facts: ProjectFacts | undefined; key: string }> {
-    const facts = await factsFor(cwd);
+    const facts = await factsFor(cwd, lookup.signal, force);
     const projectSkills = await overridesFor(facts);
     const candidates = await skillReader.list(lookup);
     const gated = gateCatalog(candidates, facts, settings, projectSkills);
@@ -197,6 +235,29 @@ export function createAgentRegistry(options: RegistryOptions): AgentRegistry {
     return directory ?? session?.header?.cwd ?? session?.cwd;
   }
 
+  /** Refresh the last observed facts for one registration; only a real move invalidates. */
+  async function refresh(agent: AgentLike, state: Registration): Promise<void> {
+    const cwd = cwdOf(agent) ?? state.cwd;
+    if (cwd === undefined) return;
+    const now = Date.now();
+    if (cwd === state.cwd && state.facts !== undefined) {
+      const fingerprint = await projectFingerprint(state.facts.root);
+      if (fingerprint === state.fingerprint) return;
+    } else if (cwd === state.cwd && now - state.lastCheckAt < PROJECT_APPEARED_RECHECK_MS) {
+      return;
+    }
+
+    const result = await view(cwd, {}, true);
+    const previousKey = state.lastKey;
+    state.cwd = cwd;
+    state.facts = result.facts;
+    state.hidden = result.hidden;
+    state.lastKey = result.key;
+    state.fingerprint = result.facts === undefined ? 'none' : await projectFingerprint(result.facts.root);
+    state.lastCheckAt = now;
+    if (previousKey !== result.key) state.control?.invalidate();
+  }
+
   async function add(agent: AgentLike | undefined): Promise<RegistrationResult> {
     const id = agent?.session?.id ?? agent?.id;
     if (id === undefined || states.has(id)) return 'skipped';
@@ -207,10 +268,13 @@ export function createAgentRegistry(options: RegistryOptions): AgentRegistry {
     const state: Registration = {
       id,
       agent: agent as AgentLike,
+      cwd,
       control: undefined,
       facts: undefined,
       hidden: [],
       lastKey: 'unset',
+      fingerprint: 'none',
+      lastCheckAt: 0,
       disposers: [],
     };
     states.set(id, state);
@@ -218,19 +282,24 @@ export function createAgentRegistry(options: RegistryOptions): AgentRegistry {
     const provider = new UnitySkillProvider(settings.providerName, async (lookup) => {
       const current = cwdOf(agent) ?? cwd;
       const result = await view(current, lookup);
+      const previousKey = state.lastKey;
+      state.cwd = current;
       state.facts = result.facts;
       state.hidden = result.hidden;
-      if (result.key !== state.lastKey) {
-        state.lastKey = result.key;
-        // Facts moved (editor version, packages, project root): refresh the cached
-        // catalog so the next snapshot reflects the new gating.
+      state.lastKey = result.key;
+      state.fingerprint = result.facts === undefined ? 'none' : await projectFingerprint(result.facts.root);
+      state.lastCheckAt = Date.now();
+      if (previousKey !== 'unset' && previousKey !== result.key) {
+        // Facts moved while the catalog cache was warm: refresh it so the next
+        // snapshot reflects the new gating instead of the cached candidates.
         const control = state.control;
         if (control !== undefined) queueMicrotask(() => control.invalidate());
       }
       return result;
     });
 
-    state.disposers.push(
+    const registrations: Array<() => void> = [];
+    registrations.push(
       agentSkills.registerProvider((control) => {
         state.control = control;
         return provider;
@@ -239,7 +308,7 @@ export function createAgentRegistry(options: RegistryOptions): AgentRegistry {
 
     const agentPrompt = serviceOf<SystemPromptService>(agent?.ctx, 'systemPrompt');
     if (settings.injectContext && agentPrompt !== undefined) {
-      state.disposers.push(
+      registrations.push(
         agentPrompt.context({
           name: 'unity:project',
           order: CONTEXT_ORDER,
@@ -247,8 +316,56 @@ export function createAgentRegistry(options: RegistryOptions): AgentRegistry {
         }),
       );
     }
-    // Prime the facts so the first prompt assembly already carries the context.
-    await factsFor(cwd);
+
+    const agentCtx = agent?.ctx;
+    if (agentCtx?.on !== undefined) {
+      const onPreStep = async (...args: unknown[]): Promise<unknown> => {
+        const next = args[1] as (() => Promise<unknown>) | undefined;
+        try {
+          await refresh(agent as AgentLike, state);
+        } catch (error) {
+          if (!isAbort(error)) ctx.logger.warn(`unity skills: project refresh failed: ${String(error)}`);
+        }
+        return next === undefined ? undefined : next();
+      };
+      registrations.push(agentCtx.on('agent/pre-step', onPreStep));
+    }
+
+    if (agentCtx?.effect !== undefined) {
+      state.disposers.push(
+        agentCtx.effect(
+          () => () => {
+            for (const dispose of registrations.splice(0).reverse()) {
+              try {
+                dispose();
+              } catch (error) {
+                ctx.logger.warn(`unity skills: registration cleanup failed: ${String(error)}`);
+              }
+            }
+          },
+          'unity-skills agent',
+        ),
+      );
+    } else {
+      state.disposers.push(...registrations);
+    }
+
+    // Prime the facts and the hidden list so the first prompt assembly already
+    // carries the context, not only the second one after a catalog read. A
+    // failure here (an unreadable skill directory, cancellation during agent
+    // creation) must not prevent the provider from being registered: the next
+    // lookup retries discovery and the context stays empty until it succeeds.
+    try {
+      const primed = await view(cwd, { signal: state.control?.signal }, true);
+      state.cwd = cwd;
+      state.facts = primed.facts;
+      state.hidden = primed.hidden;
+      state.lastKey = primed.key;
+      state.fingerprint = primed.facts === undefined ? 'none' : await projectFingerprint(primed.facts.root);
+      state.lastCheckAt = Date.now();
+    } catch (error) {
+      if (!isAbort(error)) ctx.logger.warn(`unity skills: initial catalog read failed: ${String(error)}`);
+    }
     return 'registered';
   }
 
@@ -306,18 +423,35 @@ export function serviceOf<T>(context: { get(name: string): unknown } | undefined
   }
 }
 
-/** Options passed to the real project detector. */
-export function resolveDetectOptions(ctx: PluginContext): DetectOptions {
+/**
+ * Options passed to the real project detector.
+ *
+ * The CLI lookup is cached for a minute: whether `unity` is on `PATH` does not
+ * change between two steps, and probing it on every fact check would spend a
+ * subprocess resolution per step. File facts keep their short TTL.
+ *
+ * @param ctx - plugin context used to reach the optional subprocess service.
+ * @param signal - cancellation for the detection that consumes the options.
+ * @returns detector options.
+ */
+export function resolveDetectOptions(ctx: PluginContext, signal?: AbortSignal): DetectOptions {
   const subprocess = serviceOf<SubprocessService>(ctx, 'subprocess');
+  let cli: { value: string | undefined; at: number } | undefined;
   return {
     maxDepth: 8,
+    ...(signal === undefined ? {} : { signal }),
     ...(subprocess === undefined
       ? {}
       : {
           resolveExecutable: async (command: string) => {
+            const now = Date.now();
+            if (cli !== undefined && now - cli.at < CLI_TTL_MS) return cli.value;
             try {
-              return await subprocess.resolveExecutable(command);
+              const value = await subprocess.resolveExecutable(command, undefined, signal);
+              cli = { value, at: now };
+              return value;
             } catch {
+              cli = { value: undefined, at: now };
               return undefined;
             }
           },
@@ -343,7 +477,7 @@ export function createGlobalProvider(options: { settings: RegistrySettings; regi
     name: settings.providerName,
     async list(lookup: SkillLookupOptions = {}) {
       const candidates = await registry.reader.list(lookup);
-      const facts = await registry.factsFor(lookup.cwd);
+      const facts = await registry.factsFor(lookup.cwd, lookup.signal);
       const projectSkills = await registry.projectSkillsFor(facts);
       return gateCatalog(candidates, facts, settings, projectSkills).candidates;
     },
