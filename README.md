@@ -14,7 +14,6 @@
 - **实时刷新**：每个 step 前用 `ProjectVersion.txt`、`manifest.json`、`UnityLockfile` 的指纹检查工程事实，变化时重新门控；`skills/` 由 watcher 与 DSH 的 `fs/observed` 共同失效，不用重启。
 - **DSH 原生配置与兼容声明**：导出 schemastery `Config`（Plugins 页可编辑、加载期校验），并在 `package.json` 声明 `engines.dsh` 与 `@deepseek-ai/dsh-skill` / `schemastery` peer，`plugin_manager` 能拒绝不兼容的安装/升级。
 - **`/unity-status`**：面向人的只读命令，输出与目录共用同一套检测/门控，排障不用翻日志。
-- **上游可追踪**：`upstream.lock.json` 记录 Unity 官方插件版本与逐文件 hash；每周 workflow 报告 drift，人工 port，不自动覆盖本地改写。
 - **一行插件、零运行时依赖**：`cordis.patch.yml` 只插入一个 Host 行 `unity-skills`；运行时只用 Node 内置模块，不依赖任何第三方包。仓库里的源码是 TypeScript，`pnpm pack`（`prepack`）时编译成 `lib/` 发布，因此按目录安装前要先构建一次，见[安装](#安装)。
 - **设计说明**：为什么必须按 agent 注册、门控与降级的取舍，见 [docs/design.md](./docs/design.md)。
 
@@ -268,15 +267,6 @@ pnpm pack                 # 打 tarball；prepack 会先 pnpm run clean 再 pnpm
 node scripts/validate-skills.ts --report /tmp/skill-audit.md   # 另外写一份 Markdown 报告
 node scripts/validate-skills.ts --only unity-cli,ui-uitk       # 只检查指定技能
 ```
-
-### 上游维护
-
-`skills/` 是对 Unity 官方 `unity-agent-plugin` 的压缩改写，`upstream.lock.json`
-记录 pin 的 commit、上游版本（当前 0.1.9-beta）与每个文件的 git blob hash。
-`.github/workflows/upstream.yml` 每周一跑 `--check`，drift 时把变更文件下载为
-artifact、生成 `upstream-report.md` 并开/更新一个 PR；**不会自动覆盖本地技能**。
-维护者按报告人工 port，改完后 `pnpm run upstream:lock` 更新基线。详见
-[docs/compatibility.md](docs/compatibility.md)。
 
 ### CI 与发布
 

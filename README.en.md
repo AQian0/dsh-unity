@@ -55,14 +55,12 @@ versions.
 pnpm install
 pnpm test                 # vp check → tsc → node --test
 pnpm run validate         # skill structure, YAML, requirements, body budget
-pnpm run upstream:check   # upstream drift (network)
 pnpm run build            # src/ → lib/
 ```
 
 `skills/` is a condensed adaptation of
-[Unity-Technologies/unity-agent-plugin](https://github.com/Unity-Technologies/unity-agent-plugin);
-`upstream.lock.json` pins the upstream commit and file hashes, and a weekly workflow
-reports drift for a human to port. A `SKILL.md` body must stay below DSH's 8192-character
+[Unity-Technologies/unity-agent-plugin](https://github.com/Unity-Technologies/unity-agent-plugin).
+A `SKILL.md` body must stay below DSH's 8192-character
 tool-result prune line; this package targets 7000 and keeps details in `references/`.
 
 ## Known limits
